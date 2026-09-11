@@ -1,0 +1,2 @@
+# investment-tracker
+track investment 
