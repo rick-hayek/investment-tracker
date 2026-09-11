@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investment Tracker - 极简边栏架构 UI 设计与交互原型</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: rgba(18, 26, 43, 0.75);
+      --bg-card-hover: rgba(26, 38, 62, 0.85);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(56, 189, 248, 0.35);
+      
+      --accent-green: #10b981;
+      --accent-green-bg: rgba(16, 185, 129, 0.15);
+      --accent-red: #ef4444;
+      --accent-red-bg: rgba(239, 68, 68, 0.15);
+      --accent-blue: #3b82f6;
+      --accent-blue-glow: rgba(59, 130, 246, 0.4);
+      --accent-purple: #8b5cf6;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 60%, rgba(16, 185, 129, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 50% 90%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 20px 80px;
+    }
+
+    header {
+      text-align: center;
+      max-width: 860px;
+      margin-bottom: 32px;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 9999px;
+      color: #60a5fa;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      letter-spacing: 0.5px;
+    }
+
+    h1 {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* Screen Selector Tabs */
+    .view-toggle {
+      display: flex;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      padding: 4px;
+      margin-bottom: 30px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .view-toggle button {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 22px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .view-toggle button.active {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+
+    /* Screens Grid */
+    .screens-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 30px;
+      max-width: 1440px;
+      width: 100%;
+    }
+
+    .screen-column {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .screen-header {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 16px 18px;
+      backdrop-filter: blur(12px);
+    }
+
+    .screen-header .screen-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+
+    .screen-header h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 4px;
+    }
+
+    .screen-header p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Phone Device Mockup Container */
+    .phone-frame {
+      width: 100%;
+      background: #020617;
+      border-radius: 36px;
+      border: 6px solid #1e293b;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      position: relative;
+      aspect-ratio: 9 / 18.5;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .phone-notch {
+      width: 100%;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #cbd5e1;
+      z-index: 20;
+      background: #090d16;
+    }
+
+    .screen-content-wrapper {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    /* Rendered Image */
+    .mockup-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Live Interactive HTML UI Mockup */
+    .interactive-app {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: 100%;
+      overflow-y: auto;
+      background: #090d16;
+      position: relative;
+    }
+
+    /* App Header */
+    .app-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 2px;
+    }
+
+    .app-nav .hamburger-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .app-nav .hamburger-btn:hover {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: #3b82f6;
+    }
+
+    .hamburger-line {
+      width: 18px;
+      height: 2px;
+      background: #f8fafc;
+      border-radius: 2px;
+    }
+
+    .hamburger-line.short {
+      width: 12px;
+      margin-left: -6px;
+    }
+
+    .app-nav .app-title {
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.3px;
+    }
+
+    .app-nav .icon-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #cbd5e1;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    /* Sliding Drawer Sidebar Overlay */
+    .drawer-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .drawer-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer-sidebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 78%;
+      background: linear-gradient(180deg, #0e1626 0%, #090d16 100%);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transform: translateX(-100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 15px 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .drawer-overlay.open .drawer-sidebar {
+      transform: translateX(0);
+    }
+
+    .drawer-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 16px;
+      margin-bottom: 24px;
+    }
+
+    .drawer-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .drawer-user-info .name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .drawer-user-info .tag {
+      font-size: 11px;
+      font-weight: 600;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 3px;
+      display: inline-block;
+    }
+
+    .drawer-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .drawer-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .drawer-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+    }
+
+    .drawer-item.active {
+      background: linear-gradient(90deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.05) 100%);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .drawer-item .icon {
+      font-size: 18px;
+    }
+
+    .drawer-footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .pref-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Total Assets Card */
+    .total-card {
+      background: linear-gradient(145deg, rgba(26, 38, 65, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      padding: 22px 20px;
+      position: relative;
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .total-card .label {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .total-card .amount {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .total-card .pnl-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: var(--accent-green-bg);
+      color: var(--accent-green);
+    }
+
+    .sparkline-svg {
+      width: 100%;
+      height: 60px;
+      margin: 14px 0 16px;
+    }
+
+    .card-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .card-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 10px 4px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .card-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+    }
+
+    .section-title span.link {
+      font-size: 13px;
+      color: #38bdf8;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    /* Asset List */
+    .asset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .asset-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 18px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .asset-item:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255, 255, 255, 0.16);
+      transform: translateY(-1px);
+    }
+
+    .asset-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .asset-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .asset-icon.btc { background: #f7931a; color: #fff; }
+    .asset-icon.eth { background: #627eea; color: #fff; }
+    .asset-icon.sol { background: linear-gradient(135deg, #9945ff 0%, #14f195 100%); color: #fff; }
+
+    .asset-info .name {
+      font-weight: 700;
+      font-size: 15px;
+      color: #ffffff;
+    }
+
+    .asset-info .sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .asset-right {
+      text-align: right;
+    }
+
+    .asset-right .value {
+      font-weight: 700;
+      font-size: 15px;
+      color: #ffffff;
+      font-family: var(--font-mono);
+    }
+
+    .asset-right .pnl {
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .pnl-green { color: var(--accent-green); }
+    .pnl-red { color: var(--accent-red); }
+
+    /* Settings View Elements */
+    .settings-group {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 18px;
+      padding: 6px 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 13px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 14px;
+      color: #e2e8f0;
+    }
+
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+
+    .settings-row .row-right {
+      color: var(--text-muted);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Toggle Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-green);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Form Styles */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+
+    .toggle-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: #1e293b;
+      padding: 4px;
+      border-radius: 14px;
+    }
+
+    .toggle-btn {
+      padding: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: transparent;
+      color: var(--text-muted);
+    }
+
+    .toggle-btn.active.buy {
+      background: var(--accent-green);
+      color: #042f1f;
+      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
+    }
+
+    .toggle-btn.active.sell {
+      background: var(--accent-red);
+      color: #ffffff;
+      box-shadow: 0 2px 10px rgba(239, 68, 68, 0.35);
+    }
+
+    .platform-selector {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .platform-chip {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border-card);
+      border-radius: 12px;
+      padding: 10px 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+      transition: all 0.2s;
+    }
+
+    .platform-chip.selected {
+      background: rgba(37, 99, 235, 0.2);
+      border-color: #3b82f6;
+      color: #60a5fa;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+    }
+
+    .platform-chip .p-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .p-icon.okx { background: #000; color: #fff; border: 1px solid #334155; }
+    .p-icon.binance { background: #f0b90b; color: #000; }
+    .p-icon.coingecko { background: #8dc63f; color: #fff; }
+    .p-icon.coinbase { background: #0052ff; color: #fff; }
+
+    .input-box {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: #ffffff;
+      font-family: var(--font-sans);
+      font-size: 15px;
+      font-weight: 500;
+      width: 100%;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .input-box:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .helper-text {
+      font-size: 11px;
+      color: #60a5fa;
+      line-height: 1.4;
+      padding-left: 2px;
+    }
+
+    .summary-box {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .summary-box .sum-label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .summary-box .sum-val {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+      font-family: var(--font-mono);
+    }
+
+    .submit-btn {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      border-radius: 14px;
+      padding: 14px;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s;
+      margin-top: 4px;
+    }
+
+    /* Specs Section */
+    .specs-section {
+      max-width: 1440px;
+      width: 100%;
+      margin-top: 50px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 20px;
+      padding: 32px;
+      backdrop-filter: blur(12px);
+    }
+
+    .specs-section h3 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .specs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .spec-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .spec-box h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
+
+    .spec-box p, .spec-box ul {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .spec-box ul {
+      padding-left: 18px;
+      margin-top: 6px;
+    }
+
+    code {
+      background: rgba(255, 255, 255, 0.08);
+      color: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge-pill">✨ Drawer Sidebar Navigation Architecture</div>
+    <h1>极简边栏架构 UI 设计与交互方案</h1>
+    <p class="subtitle">针对初期仅有 Home看板 和 Settings/Profile 页面的极简架构，移除冗余底部导航栏，采用优雅的侧边抽屉栏 (Sidebar Drawer)</p>
+  </header>
+
+  <!-- View Mode Switcher -->
+  <div class="view-toggle">
+    <button id="btn-mockup" class="active" onclick="switchView('mockup')">
+      🎨 完整高保真设计图 (Visual Mockups)
+    </button>
+    <button id="btn-interactive" onclick="switchView('interactive')">
+      ⚡ 边栏与页面动态联动原型 (Interactive Drawer Prototype)
+    </button>
+  </div>
+
+  <!-- Screens Grid -->
+  <main class="screens-container">
+
+    <!-- Screen 01: Sidebar Drawer -->
+    <div class="screen-column">
+      <div class="screen-header">
+        <div class="screen-num">Screen 01 (New)</div>
+        <h2>边栏抽屉菜单 (Drawer)</h2>
+        <p>点击顶部 ☰ 图标滑出，聚焦「Home 资产看板」与「Settings & Profile」两大核心入口。</p>
+      </div>
+
+      <div class="phone-frame">
+        <div class="phone-notch">
+          <span>9:41</span>
+          <span>●●● 5G 88%</span>
+        </div>
+        <div class="screen-content-wrapper">
+          <img class="mockup-img view-mockup" src="images/04_sidebar_drawer.jpg" alt="边栏抽屉菜单设计图">
+          
+          <!-- Interactive Drawer Demo -->
+          <div class="interactive-app view-interactive" style="display: none;">
+            <div class="app-nav">
+              <div class="hamburger-btn" onclick="toggleDrawer(true)">
+                <div class="hamburger-line"></div>
+                <div class="hamburger-line short"></div>
+                <div class="hamburger-line"></div>
+              </div>
+              <div class="app-title">Krypton Tracker</div>
+              <div class="icon-btn">🔔</div>
+            </div>
+
+            <!-- Total Card Preview -->
+            <div class="total-card" style="padding: 16px;">
+              <div class="label">Total Portfolio (USD)</div>
+              <div class="amount" style="font-size: 26px;">$128,450.80</div>
+              <span class="pnl-badge" style="font-size: 11px;">▲ +$14,230.50 (+12.4%)</span>
+            </div>
+
+            <p style="font-size: 13px; color: #38bdf8; text-align: center; margin-top: 20px;">
+              👆 点击左上角 <b>☰ 菜单图标</b> 体验真实侧边栏滑出动画！
+            </p>
+
+            <!-- Embedded Drawer in Interactive Mode -->
+            <div id="drawer-overlay" class="drawer-overlay open" onclick="if(event.target === this) toggleDrawer(false)">
+              <div class="drawer-sidebar">
+                <div>
+                  <div class="drawer-profile">
+                    <div class="drawer-avatar">👤</div>
+                    <div class="drawer-user-info">
+                      <div class="name">Rick H.</div>
+                      <span class="tag">Crypto Pro</span>
+                    </div>
+                  </div>
+
+                  <div class="drawer-menu">
+                    <div class="drawer-item active" onclick="navigatePage('home')">
+                      <span class="icon">🏠</span>
+                      <span>资产看板 (Home)</span>
+                    </div>
+                    <div class="drawer-item" onclick="navigatePage('settings')">
+                      <span class="icon">⚙️</span>
+                      <span>设置与个人 (Settings/Profile)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="drawer-footer">
+                  <div class="pref-row">
+                    <span>基准法币 (Currency)</span>
+                    <b style="color: #60a5fa;">USD ($)</b>
+                  </div>
+                  <div class="pref-row">
+                    <span>Face ID 安全锁</span>
+                    <label class="switch">
+                      <input type="checkbox" checked>
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <div style="font-size: 11px; color: #475569; text-align: center; margin-top: 6px;">
+                    Investment Tracker v1.0.0
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 02: Settings & Profile -->
+    <div class="screen-column">
+      <div class="screen-header">
+        <div class="screen-num">Screen 02 (New)</div>
+        <h2>设置与个人资料 (Settings)</h2>
+        <p>法币切换 (USD/CNY/EUR)、隐私防偷窥模式、交易所 API 与本地数据导出。</p>
+      </div>
+
+      <div class="phone-frame">
+        <div class="phone-notch">
+          <span>9:41</span>
+          <span>●●● 5G 100%</span>
+        </div>
+        <div class="screen-content-wrapper">
+          <img class="mockup-img view-mockup" src="images/05_settings_profile.jpg" alt="设置与个人资料设计图">
+
+          <!-- Interactive Settings Preview -->
+          <div class="interactive-app view-interactive" style="display: none;">
+            <div class="app-nav">
+              <div class="icon-btn" onclick="toggleDrawer(true)">☰</div>
+              <div class="app-title">Settings & Profile</div>
+              <div class="icon-btn" style="font-size: 12px; font-weight: 700;">编辑</div>
+            </div>
+
+            <div class="drawer-profile" style="margin-bottom: 12px;">
+              <div class="drawer-avatar">👤</div>
+              <div class="drawer-user-info">
+                <div class="name">Rick H.</div>
+                <div style="font-size: 12px; color: #94a3b8;">rick@investment.app</div>
+              </div>
+            </div>
+
+            <div class="section-title"><span>偏好设置 (Preferences)</span></div>
+            <div class="settings-group">
+              <div class="settings-row">
+                <span>基准法币 (Base Currency)</span>
+                <span class="row-right">USD ($) ›</span>
+              </div>
+              <div class="settings-row">
+                <span>防偷窥隐藏余额 (Privacy Mode)</span>
+                <label class="switch">
+                  <input type="checkbox">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <span>深色主题 (Theme)</span>
+                <span class="row-right">Dark (深空蓝黑) ›</span>
+              </div>
+            </div>
+
+            <div class="section-title"><span>交易所与数据 (Data)</span></div>
+            <div class="settings-group">
+              <div class="settings-row">
+                <span>已绑平台 (Exchanges)</span>
+                <span class="row-right">OKX, Binance ›</span>
+              </div>
+              <div class="settings-row">
+                <span>导出交易记录 (Export CSV)</span>
+                <span class="row-right">.csv ›</span>
+              </div>
+            </div>
+
+            <div class="section-title"><span>安全与隐私 (Security)</span></div>
+            <div class="settings-group">
+              <div class="settings-row">
+                <span>Face ID / 指纹锁</span>
+                <label class="switch">
+                  <input type="checkbox" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 03: Home Screen without bottom bar -->
+    <div class="screen-column">
+      <div class="screen-header">
+        <div class="screen-num">Screen 03</div>
+        <h2>首页看板 (无多余底部栏)</h2>
+        <p>移除冗余底部导航栏，左上角整合 ☰ 边栏入口，界面视野更开阔纯粹。</p>
+      </div>
+
+      <div class="phone-frame">
+        <div class="phone-notch">
+          <span>9:41</span>
+          <span>●●● 5G 100%</span>
+        </div>
+        <div class="screen-content-wrapper">
+          <img class="mockup-img view-mockup" src="images/01_home_screen.jpg" alt="首页资产看板">
+
+          <!-- Interactive Home Preview -->
+          <div class="interactive-app view-interactive" style="display: none;">
+            <div class="app-nav">
+              <div class="hamburger-btn" onclick="toggleDrawer(true)">
+                <div class="hamburger-line"></div>
+                <div class="hamburger-line short"></div>
+                <div class="hamburger-line"></div>
+              </div>
+              <div class="app-title">Krypton Tracker</div>
+              <div class="icon-btn">＋</div>
+            </div>
+
+            <div class="total-card">
+              <div class="label">Total Portfolio Value (USD)</div>
+              <div class="amount">$128,450.80</div>
+              <div>
+                <span class="pnl-badge">▲ +$14,230.50 (+12.4%)</span>
+              </div>
+              <svg class="sparkline-svg" viewBox="0 0 280 60" fill="none">
+                <path d="M0 45 Q 40 50, 70 30 T 140 32 T 210 15 T 280 5" stroke="#10b981" stroke-width="2.5" fill="none" />
+                <path d="M0 45 Q 40 50, 70 30 T 140 32 T 210 15 T 280 5 L 280 60 L 0 60 Z" fill="rgba(16, 185, 129, 0.15)" />
+              </svg>
+              <div class="card-actions">
+                <button class="card-btn">➕ 买入记录</button>
+                <button class="card-btn">➖ 卖出记账</button>
+                <button class="card-btn">⚙️ 统计分析</button>
+              </div>
+            </div>
+
+            <div class="section-title">
+              <span>持仓资产 (Assets)</span>
+              <span class="link">+ 添加</span>
+            </div>
+
+            <div class="asset-list">
+              <div class="asset-item">
+                <div class="asset-left">
+                  <div class="asset-icon btc">₿</div>
+                  <div class="asset-info">
+                    <div class="name">Bitcoin</div>
+                    <div class="sub">1.0 BTC • $68,420</div>
+                  </div>
+                </div>
+                <div class="asset-right">
+                  <div class="value">$68,420.00</div>
+                  <div class="pnl pnl-green">+3.8%</div>
+                </div>
+              </div>
+
+              <div class="asset-item">
+                <div class="asset-left">
+                  <div class="asset-icon eth">Ξ</div>
+                  <div class="asset-info">
+                    <div class="name">Ethereum</div>
+                    <div class="sub">10 ETH • $3,540.25</div>
+                  </div>
+                </div>
+                <div class="asset-right">
+                  <div class="value">$35,402.50</div>
+                  <div class="pnl pnl-green">+5.2%</div>
+                </div>
+              </div>
+
+              <div class="asset-item">
+                <div class="asset-left">
+                  <div class="asset-icon sol">S</div>
+                  <div class="asset-info">
+                    <div class="name">Solana</div>
+                    <div class="sub">100 SOL • $145.20</div>
+                  </div>
+                </div>
+                <div class="asset-right">
+                  <div class="value">$14,520.00</div>
+                  <div class="pnl pnl-red">-1.2%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 04: Add Transaction -->
+    <div class="screen-column">
+      <div class="screen-header">
+        <div class="screen-num">Screen 04</div>
+        <h2>添加买卖交易</h2>
+        <p>选择 OKX、Binance、CoinGecko、Coinbase 平台，代码格式自动提示与总额测算。</p>
+      </div>
+
+      <div class="phone-frame">
+        <div class="phone-notch">
+          <span>9:41</span>
+          <span>●●● 5G 100%</span>
+        </div>
+        <div class="screen-content-wrapper">
+          <img class="mockup-img view-mockup" src="images/02_add_transaction.jpg" alt="添加买卖交易">
+          
+          <div class="interactive-app view-interactive" style="display: none;">
+            <div class="app-nav">
+              <div class="icon-btn">✕</div>
+              <div class="app-title">记一笔交易</div>
+              <div class="icon-btn">❓</div>
+            </div>
+
+            <div class="toggle-group">
+              <button id="toggle-buy" class="toggle-btn active buy" onclick="setTxType('buy')">买入 (Buy)</button>
+              <button id="toggle-sell" class="toggle-btn" onclick="setTxType('sell')">卖出 (Sell)</button>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">选择交易平台 (Platform)</label>
+              <div class="platform-selector">
+                <div class="platform-chip" onclick="selectPlatform(this, 'OKX', 'BTC-USDT')">
+                  <div class="p-icon okx">OK</div>
+                  <span>OKX</span>
+                </div>
+                <div class="platform-chip selected" onclick="selectPlatform(this, 'Binance', 'BTCUSDT')">
+                  <div class="p-icon binance">B</div>
+                  <span>Binance</span>
+                </div>
+                <div class="platform-chip" onclick="selectPlatform(this, 'CoinGecko', 'bitcoin')">
+                  <div class="p-icon coingecko">CG</div>
+                  <span>CoinGecko</span>
+                </div>
+                <div class="platform-chip" onclick="selectPlatform(this, 'Coinbase', 'BTC-USD')">
+                  <div class="p-icon coinbase">C</div>
+                  <span>Coinbase</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">代币符号 / 代码</label>
+              <input id="input-symbol" type="text" class="input-box" value="BTC" oninput="updateCalculation()">
+              <div id="symbol-hint" class="helper-text">💡 建议格式：Binance 填 BTCUSDT 或 BTC</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">成交单价 (Price / USD)</label>
+              <input id="input-price" type="number" class="input-box" value="64500" oninput="updateCalculation()">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">数量 (Quantity)</label>
+              <input id="input-qty" type="number" class="input-box" value="0.5" oninput="updateCalculation()">
+            </div>
+
+            <div class="summary-box">
+              <span class="sum-label">交易总金额</span>
+              <span class="sum-val" id="summary-val">$32,250.00</span>
+            </div>
+
+            <button class="submit-btn" id="submit-btn-text">确认记录买入</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 05: Asset Detail -->
+    <div class="screen-column">
+      <div class="screen-header">
+        <div class="screen-num">Screen 05</div>
+        <h2>投资品详情 & 走势</h2>
+        <p>持币价值、累计盈亏、分时走势图与详细交易历史流水。</p>
+      </div>
+
+      <div class="phone-frame">
+        <div class="phone-notch">
+          <span>9:41</span>
+          <span>●●● 5G 100%</span>
+        </div>
+        <div class="screen-content-wrapper">
+          <img class="mockup-img view-mockup" src="images/03_asset_detail.jpg" alt="投资品详情">
+          
+          <div class="interactive-app view-interactive" style="display: none;">
+            <div class="app-nav">
+              <div class="icon-btn">←</div>
+              <div class="app-title">Bitcoin (BTC)</div>
+              <div class="icon-btn">⭐</div>
+            </div>
+
+            <div class="total-card" style="padding: 16px 18px;">
+              <div class="label">当前持仓总价值</div>
+              <div class="amount" style="font-size: 28px;">$68,420.00</div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                <span style="font-size: 13px; color: #94a3b8;">持币: 1.00 BTC</span>
+                <span class="pnl-badge">▲ +$12,320.00 (+22.0%)</span>
+              </div>
+            </div>
+
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-card); border-radius: 18px; padding: 14px;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                <span>24H</span><span>1W</span><span style="color: #38bdf8; font-weight: 700;">1M</span><span>1Y</span><span>ALL</span>
+              </div>
+              <svg style="width: 100%; height: 90px;" viewBox="0 0 280 90">
+                <path d="M0 65 Q 50 70, 90 45 T 160 30 T 220 18 T 280 8" stroke="#10b981" stroke-width="2.5" fill="none" />
+                <path d="M0 65 Q 50 70, 90 45 T 160 30 T 220 18 T 280 8 L 280 90 L 0 90 Z" fill="rgba(16, 185, 129, 0.15)" />
+              </svg>
+            </div>
+
+            <div class="section-title"><span>历史交易明细</span></div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 14px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 11px; color: #10b981; font-weight: 700;">买入 • 2026-05-12</div>
+                  <div style="font-size: 13px; color: #fff; font-weight: 600;">+0.50 BTC @ $60,000</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 13px; color: #10b981; font-weight: 700;">+$4,210</div>
+                  <div style="font-size: 11px; color: #64748b;">未实现</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Specs Section -->
+  <section class="specs-section">
+    <h3>📐 侧边栏极简导航架构优势与设计规约</h3>
+    <div class="specs-grid">
+      <div class="spec-box">
+        <h4>🌟 为什么初期选择边栏而非底部菜单？</h4>
+        <ul>
+          <li><strong>信噪比极致提升：</strong> 早期功能高度聚焦（只有 Home看板 和 Settings/Profile），底部若放置 4 个半空栏目（如 Markets, Analytics 等占位按钮）会稀释焦点。</li>
+          <li><strong>沉浸式卡片展示：</strong> 释放了底部 60px~75px 的高度，让总资产与代币持仓列表能够完整展示，不必被底部 Tab 遮挡或挤压。</li>
+          <li><strong>自然扩展性：</strong> 后期增加“股票持仓”、“多账套/分钱包”、“税务报表”等新功能时，边栏抽屉只需纵向增加条目，无需颠覆底部架构。</li>
+        </ul>
+      </div>
+
+      <div class="spec-box">
+        <h4>🧭 抽屉交互手势与动效</h4>
+        <ul>
+          <li><strong>触发机制：</strong> 点击左上角 <code>☰</code> 汉堡菜单，或从屏幕最左边缘向右侧滑手势（Edge Swipe）拉出。</li>
+          <li><strong>背景层：</strong> 带有 <code>rgba(0,0,0,0.65)</code> 半透明遮罩与 6px 高斯模糊，点击遮罩任意区域或向左滑动手势即可关闭。</li>
+          <li><strong>动画时长：</strong> 推荐 280ms ~ 300ms 贝塞尔曲线 <code>cubic-bezier(0.4, 0, 0.2, 1)</code>。</li>
+        </ul>
+      </div>
+
+      <div class="spec-box">
+        <h4>⚙️ Settings & Profile 核心功能</h4>
+        <ul>
+          <li><strong>基准货币切换：</strong> USD ($)、CNY (¥)、EUR (€)，行情自动折算。</li>
+          <li><strong>隐私防窥模式 (Privacy Mode)：</strong> 开启后资产金额显示为 <code>••••••</code>，在地铁/公共场合打开更安全。</li>
+          <li><strong>本地数据安全：</strong> 支持导出 CSV、本地备份与 Face ID / 指纹识别解锁。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    function switchView(mode) {
+      const mockups = document.querySelectorAll('.view-mockup');
+      const interactives = document.querySelectorAll('.view-interactive');
+      const btnMockup = document.getElementById('btn-mockup');
+      const btnInteractive = document.getElementById('btn-interactive');
+
+      if (mode === 'mockup') {
+        mockups.forEach(el => el.style.display = 'block');
+        interactives.forEach(el => el.style.display = 'none');
+        btnMockup.classList.add('active');
+        btnInteractive.classList.remove('active');
+      } else {
+        mockups.forEach(el => el.style.display = 'none');
+        interactives.forEach(el => el.style.display = 'flex');
+        btnMockup.classList.remove('active');
+        btnInteractive.classList.add('active');
+      }
+    }
+
+    function toggleDrawer(isOpen) {
+      const overlay = document.getElementById('drawer-overlay');
+      if (overlay) {
+        if (isOpen) {
+          overlay.classList.add('open');
+        } else {
+          overlay.classList.remove('open');
+        }
+      }
+    }
+
+    function navigatePage(page) {
+      toggleDrawer(false);
+      // In interactive prototype, highlight active item
+      alert(`已切换至页面: ${page === 'home' ? '资产看板 (Home)' : '设置与个人 (Settings & Profile)'}`);
+    }
+
+    let currentTxType = 'buy';
+    function setTxType(type) {
+      currentTxType = type;
+      const buyBtn = document.getElementById('toggle-buy');
+      const sellBtn = document.getElementById('toggle-sell');
+      const submitBtn = document.getElementById('submit-btn-text');
+
+      if (type === 'buy') {
+        buyBtn.className = 'toggle-btn active buy';
+        sellBtn.className = 'toggle-btn';
+        submitBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        submitBtn.textContent = '确认记录买入';
+      } else {
+        buyBtn.className = 'toggle-btn';
+        sellBtn.className = 'toggle-btn active sell';
+        submitBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+        submitBtn.textContent = '确认记录卖出';
+      }
+    }
+
+    function selectPlatform(element, name, sampleFormat) {
+      document.querySelectorAll('.platform-chip').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+      const hint = document.getElementById('symbol-hint');
+      hint.innerHTML = `💡 建议格式：${name} 平台常用 <code>${sampleFormat}</code>`;
+    }
+
+    function updateCalculation() {
+      const price = parseFloat(document.getElementById('input-price').value) || 0;
+      const qty = parseFloat(document.getElementById('input-qty').value) || 0;
+      const total = price * qty;
+      document.getElementById('summary-val').textContent = '$' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+  </script>
+</body>
+</html>

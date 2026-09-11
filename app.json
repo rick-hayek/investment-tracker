@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Investment Tracker",
+    "slug": "investment-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#090D16"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rick.investmenttracker",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "使用 Face ID 保护您的投资资产隐私。"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#090D16"
+      },
+      "package": "com.rick.investmenttracker"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}
