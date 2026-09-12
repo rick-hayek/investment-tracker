@@ -19,6 +19,7 @@ import { DataExportService } from '../../services/dataExportService';
 import { SettingsRepository } from '../../database/repositories/settingsRepository';
 import { AssetRepository } from '../../database/repositories/assetRepository';
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
+import { LanguageType, t, getLanguageName } from '../../i18n';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -26,6 +27,7 @@ import {
   BaseCurrencyIcon,
   LockIcon,
   MoonIcon,
+  GlobeIcon,
   ExportCsvIcon,
   CloudBackupIcon,
   ExchangeMatrixIcon,
@@ -72,6 +74,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   }, [visible]);
 
+  const lang = settings.language || 'zh';
+
+  // 切换语言
+  const handleToggleLanguage = () => {
+    const nextLang: LanguageType = lang === 'zh' ? 'en' : 'zh';
+    onUpdateSettings({ language: nextLang });
+  };
+
   // 轮转切换基准法币
   const handleCycleCurrency = () => {
     const next = getNextCurrency(settings.baseCurrency);
@@ -86,7 +96,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // 导出 CSV 交易明细
   const handleExportCSV = async () => {
     if (transactions.length === 0) {
-      Alert.alert('提示', '暂无交易流水记录可导出。');
+      Alert.alert(t('common.error', lang), lang === 'zh' ? '暂无交易流水记录可导出。' : 'No transactions to export.');
       return;
     }
     const csvString = DataExportService.exportTransactionsToCSV(transactions, assets);
@@ -102,23 +112,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // 确认恢复导入 JSON
   const handleConfirmImport = async () => {
     if (!importJsonText.trim()) {
-      Alert.alert('错误', '请输入或粘贴 JSON 备份内容');
+      Alert.alert(t('common.error', lang), lang === 'zh' ? '请输入或粘贴 JSON 备份内容' : 'Please paste backup JSON content');
       return;
     }
 
     const validation = DataExportService.validateAndParseJSONBackup(importJsonText);
     if (!validation.success || !validation.data) {
-      Alert.alert('导入失败', validation.error || '备份文件格式不正确');
+      Alert.alert(
+        lang === 'zh' ? '导入失败' : 'Import Failed',
+        validation.error || (lang === 'zh' ? '备份文件格式不正确' : 'Invalid backup format')
+      );
       return;
     }
 
     Alert.alert(
-      '确认恢复备份？',
-      `检测到 ${validation.data.assets.length} 个资产和 ${validation.data.transactions.length} 条交易记录。恢复操作将覆盖现有记录。`,
+      lang === 'zh' ? '确认恢复备份？' : 'Confirm Restore Backup?',
+      lang === 'zh'
+        ? `检测到 ${validation.data.assets.length} 个资产和 ${validation.data.transactions.length} 条交易记录。恢复操作将覆盖现有记录。`
+        : `Found ${validation.data.assets.length} assets and ${validation.data.transactions.length} transactions. This will overwrite current data.`,
       [
-        { text: '取消', style: 'cancel' },
+        { text: t('common.cancel', lang), style: 'cancel' },
         {
-          text: '确定恢复',
+          text: t('common.confirm', lang),
           style: 'destructive',
           onPress: async () => {
             setImportLoading(true);
@@ -147,9 +162,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               await onDataResetOrImported();
               setImportModalVisible(false);
               setImportJsonText('');
-              Alert.alert('成功', '数据备份已成功恢复！');
+              Alert.alert(t('common.success', lang), t('settings.restoreSuccess', lang));
             } catch (err: any) {
-              Alert.alert('导入异常', err.message || '恢复过程出错');
+              Alert.alert(t('common.error', lang), err.message || 'Error restoring data');
             } finally {
               setImportLoading(false);
             }
@@ -165,9 +180,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       const updated = await defaultForexService.fetchLatestRates();
       setForexInfo(updated);
-      Alert.alert('汇率更新成功', `1 USD = ${updated.rates.CNY.toFixed(2)} CNY / ${updated.rates.EUR.toFixed(2)} EUR`);
+      Alert.alert(
+        t('settings.rateUpdateSuccess', lang),
+        `1 USD = ${updated.rates.CNY.toFixed(2)} CNY / ${updated.rates.EUR.toFixed(2)} EUR`
+      );
     } catch {
-      Alert.alert('更新提示', '获取汇率失败，已保持当前缓存。');
+      Alert.alert(t('common.error', lang), t('settings.rateUpdateFailed', lang));
     } finally {
       setIsRefreshingForex(false);
     }
@@ -176,20 +194,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <SafeAreaView style={styles.safeContainer}>
-        {/* 顶部导航栏 (100% 还原 05_settings_profile.jpg) */}
+        {/* 顶部导航栏 */}
         <View style={styles.navBar}>
           <TouchableOpacity style={styles.backBtn} onPress={onClose} activeOpacity={0.7}>
             <ChevronLeftIcon size={22} color="#F8FAFC" />
           </TouchableOpacity>
-          <Text style={styles.navTitle}>Settings & Profile</Text>
-          <TouchableOpacity
-            style={styles.editBtn}
-            onPress={() => Alert.alert('Profile', '个人资料编辑功能开发中')}
-            activeOpacity={0.7}
-          >
-            <EditPencilIcon size={14} color="#F8FAFC" />
-            <Text style={styles.editBtnText}>Edit</Text>
-          </TouchableOpacity>
+          <Text style={styles.navTitle}>{t('drawer.settingsAndProfile', lang)}</Text>
+          <View style={styles.navRightPlaceholder} />
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
@@ -202,15 +213,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <View style={styles.nameRow}>
                 <Text style={styles.userName}>Rick H.</Text>
                 <View style={styles.proBadge}>
-                  <Text style={styles.proBadgeText}>Pro Member</Text>
+                  <Text style={styles.proBadgeText}>PRO</Text>
                 </View>
               </View>
               <Text style={styles.userEmail}>rickh.invests@email.com</Text>
             </View>
+            <TouchableOpacity
+              style={styles.profileEditBtn}
+              onPress={() => Alert.alert(t('settings.editProfile', lang), lang === 'zh' ? '个人资料编辑功能开发中' : 'Profile edit feature coming soon')}
+              activeOpacity={0.7}
+            >
+              <EditPencilIcon size={16} color="#94A3B8" />
+            </TouchableOpacity>
           </View>
 
           {/* Section 1: Preferences */}
-          <Text style={styles.sectionTitle}>Preferences</Text>
+          <Text style={styles.sectionTitle}>{t('settings.preferences', lang)}</Text>
           <View style={styles.cardGroup}>
             {/* Base Currency */}
             <TouchableOpacity style={styles.rowItem} onPress={handleCycleCurrency} activeOpacity={0.7}>
@@ -218,7 +236,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <View style={styles.iconContainer}>
                   <BaseCurrencyIcon size={20} color="#94A3B8" />
                 </View>
-                <Text style={styles.rowTitle}>Base Currency</Text>
+                <Text style={styles.rowTitle}>{t('settings.baseCurrency', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
                 <Text style={styles.rowRightValue}>
@@ -237,8 +255,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <LockIcon size={20} color="#94A3B8" />
                 </View>
                 <View>
-                  <Text style={styles.rowTitle}>Privacy Mode</Text>
-                  <Text style={styles.rowSubtitle}>Hide Balances in Public</Text>
+                  <Text style={styles.rowTitle}>{t('settings.privacyMode', lang)}</Text>
+                  <Text style={styles.rowSubtitle}>{t('settings.privacyModeSubtitle', lang)}</Text>
                 </View>
               </View>
               <View style={styles.switchWrapper}>
@@ -253,39 +271,55 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
             <View style={styles.divider} />
 
+            {/* Language / 语言切换 */}
+            <TouchableOpacity style={styles.rowItem} onPress={handleToggleLanguage} activeOpacity={0.7}>
+              <View style={styles.rowLeft}>
+                <View style={styles.iconContainer}>
+                  <GlobeIcon size={20} color="#94A3B8" />
+                </View>
+                <Text style={styles.rowTitle}>{t('settings.language', lang)}</Text>
+              </View>
+              <View style={styles.rowRight}>
+                <Text style={styles.rowRightValue}>{getLanguageName(lang)}</Text>
+                <ChevronRightIcon size={16} color="#64748B" />
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
             {/* Theme */}
             <TouchableOpacity
               style={styles.rowItem}
-              onPress={() => Alert.alert('Theme', '当前为原生极简深黑模式 (Dark Mode)')}
+              onPress={() => Alert.alert(t('settings.theme', lang), lang === 'zh' ? '当前为原生极简深黑模式 (Dark Mode)' : 'Currently using Dark Mode')}
               activeOpacity={0.7}
             >
               <View style={styles.rowLeft}>
                 <View style={styles.iconContainer}>
                   <MoonIcon size={20} color="#94A3B8" />
                 </View>
-                <Text style={styles.rowTitle}>Theme</Text>
+                <Text style={styles.rowTitle}>{t('settings.theme', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
-                <Text style={styles.rowRightValue}>Dark</Text>
+                <Text style={styles.rowRightValue}>{t('settings.themeDark', lang)}</Text>
                 <ChevronRightIcon size={16} color="#64748B" />
               </View>
             </TouchableOpacity>
           </View>
 
           {/* Section 2: Exchanges & Data */}
-          <Text style={styles.sectionTitle}>Exchanges & Data</Text>
+          <Text style={styles.sectionTitle}>{t('settings.exchangesAndData', lang)}</Text>
           <View style={styles.cardGroup}>
             {/* Connected Exchanges */}
             <TouchableOpacity
               style={styles.rowItem}
-              onPress={() => Alert.alert('Connected Exchanges', '已连接市场数据通道: OKX, Binance, Coinbase, CoinGecko')}
+              onPress={() => Alert.alert(t('settings.connectedExchanges', lang), lang === 'zh' ? '已连接市场数据通道: OKX, Binance, Coinbase, CoinGecko' : 'Connected channels: OKX, Binance, Coinbase, CoinGecko')}
               activeOpacity={0.7}
             >
               <View style={styles.rowLeft}>
                 <View style={styles.iconContainer}>
                   <ExchangeMatrixIcon size={20} />
                 </View>
-                <Text style={styles.rowTitle}>Connected Exchanges</Text>
+                <Text style={styles.rowTitle}>{t('settings.connectedExchanges', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
                 <Text style={styles.rowRightValue}>OKX, Binance</Text>
@@ -301,7 +335,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <View style={styles.iconContainer}>
                   <ExportCsvIcon size={20} color="#94A3B8" />
                 </View>
-                <Text style={styles.rowTitle}>Export Transactions (.CSV)</Text>
+                <Text style={styles.rowTitle}>{t('settings.exportCsv', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
                 <ChevronRightIcon size={16} color="#64748B" />
@@ -320,7 +354,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <View style={styles.iconContainer}>
                   <CloudBackupIcon size={20} color="#94A3B8" />
                 </View>
-                <Text style={styles.rowTitle}>Cloud Backup</Text>
+                <Text style={styles.rowTitle}>{t('settings.cloudBackup', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
                 <ChevronRightIcon size={16} color="#64748B" />
@@ -329,7 +363,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </View>
 
           {/* Section 3: Forex Rates Info & Refresh */}
-          <Text style={styles.sectionTitle}>Forex Rates</Text>
+          <Text style={styles.sectionTitle}>{t('settings.forexRates', lang)}</Text>
           <View style={styles.cardGroup}>
             <View style={styles.forexRow}>
               <View style={styles.forexItem}>
@@ -350,7 +384,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {isRefreshingForex ? (
                   <ActivityIndicator size="small" color="#38BDF8" />
                 ) : (
-                  <Text style={styles.refreshBtnText}>Update</Text>
+                  <Text style={styles.refreshBtnText}>{t('settings.updateRates', lang)}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -368,9 +402,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         >
           <View style={styles.modalBackdrop}>
             <View style={styles.modalDialog}>
-              <Text style={styles.dialogTitle}>Cloud Backup & Sync</Text>
+              <Text style={styles.dialogTitle}>{t('settings.backupModalTitle', lang)}</Text>
               <Text style={styles.dialogDesc}>
-                支持将持仓与交易全量导出为加密 JSON 备份包，或从文件恢复迁移。
+                {t('settings.backupModalDesc', lang)}
               </Text>
 
               <TouchableOpacity
@@ -380,7 +414,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   await handleExportJSON();
                 }}
               >
-                <Text style={styles.actionBtnText}>导出全量 JSON 备份</Text>
+                <Text style={styles.actionBtnText}>{t('settings.exportJsonBtn', lang)}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -390,14 +424,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   setImportModalVisible(true);
                 }}
               >
-                <Text style={styles.actionBtnSecondaryText}>导入并还原备份</Text>
+                <Text style={styles.actionBtnSecondaryText}>{t('settings.importJsonBtn', lang)}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.dialogCancelBtn}
                 onPress={() => setBackupModalVisible(false)}
               >
-                <Text style={styles.dialogCancelText}>取消</Text>
+                <Text style={styles.dialogCancelText}>{t('common.cancel', lang)}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -412,14 +446,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         >
           <View style={styles.modalBackdrop}>
             <View style={styles.modalDialog}>
-              <Text style={styles.dialogTitle}>导入恢复 JSON 备份</Text>
+              <Text style={styles.dialogTitle}>{t('settings.importModalTitle', lang)}</Text>
               <Text style={styles.dialogDesc}>
-                请将之前导出的 JSON 备份文本粘贴到下方文本框中：
+                {t('settings.importModalDesc', lang)}
               </Text>
 
               <TextInput
                 style={styles.dialogInput}
-                placeholder='{"version": "1.0", "assets": [...], ...}'
+                placeholder={t('settings.importPlaceholder', lang)}
                 placeholderTextColor="#64748B"
                 multiline
                 numberOfLines={7}
@@ -438,7 +472,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   }}
                   disabled={importLoading}
                 >
-                  <Text style={styles.dialogCancelText}>取消</Text>
+                  <Text style={styles.dialogCancelText}>{t('common.cancel', lang)}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -449,7 +483,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   {importLoading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.dialogConfirmText}>校验并恢复</Text>
+                    <Text style={styles.dialogConfirmText}>{t('settings.validateAndRestore', lang)}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -486,21 +520,19 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     letterSpacing: -0.3,
   },
-  editBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  navRightPlaceholder: {
+    width: 36,
+    height: 36,
+  },
+  profileEditBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  editBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,

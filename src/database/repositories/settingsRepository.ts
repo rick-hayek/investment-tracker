@@ -6,6 +6,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   privacyMode: false,
   appSwitcherBlur: true,
   theme: 'dark',
+  language: 'zh',
 };
 
 export class SettingsRepository {

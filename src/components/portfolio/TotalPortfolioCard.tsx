@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { PortfolioSummary, CurrencyType, AssetHolding } from '../../domain/types';
 import { formatCurrencyValue, getCurrencySymbol } from '../../domain/currency';
+import { LanguageType, t } from '../../i18n';
 import { Sparkline } from '../charts/Sparkline';
 
 import {
@@ -20,6 +21,7 @@ export interface TotalPortfolioCardProps {
   currency: CurrencyType;
   isPolling?: boolean;
   privacyMode?: boolean;
+  language?: LanguageType;
   onPressBuy: () => void;
   onPressSell: () => void;
   onPressAnalysis: () => void;
@@ -33,6 +35,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
   currency,
   isPolling = false,
   privacyMode = false,
+  language = 'zh',
   onPressBuy,
   onPressSell,
   onPressAnalysis,
@@ -109,7 +112,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
       <View style={styles.cardHeaderRow}>
         <View style={styles.labelGroup}>
           <TouchableOpacity onPress={onPressCurrency} style={styles.labelContainer} activeOpacity={0.7}>
-            <Text style={styles.cardLabel}>Total Assets ({currency})</Text>
+            <Text style={styles.cardLabel}>{t('totalCard.totalAssets', language)} ({currency})</Text>
             <View style={styles.currencyBadge}>
               <Text style={styles.currencyBadgeText}>{getCurrencySymbol(currency)}</Text>
             </View>
@@ -124,7 +127,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
             </TouchableOpacity>
           )}
         </View>
-        {isPolling && <Text style={styles.liveIndicator}>● Live</Text>}
+        {isPolling && <Text style={styles.liveIndicator}>● {t('common.live', language)}</Text>}
       </View>
 
       {/* 大字号总金额 */}
@@ -152,7 +155,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
             )}
           </Text>
           <Text style={styles.modeTagText}>
-            {isCumulative ? '累计 ⇄' : '24H ⇄'}
+            {isCumulative ? `${t('totalCard.cumulative', language)} ⇄` : `${t('totalCard.daily24h', language)} ⇄`}
           </Text>
         </TouchableOpacity>
       </View>
@@ -171,15 +174,15 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.actionBtn} onPress={onPressBuy} activeOpacity={0.7}>
           <DepositPlusIcon size={16} color="#38BDF8" strokeWidth={2} />
-          <Text style={styles.actionBtnText}>买入 (Buy)</Text>
+          <Text style={styles.actionBtnText}>{t('totalCard.buy', language)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} onPress={onPressSell} activeOpacity={0.7}>
           <WithdrawArrowIcon size={16} color="#F8FAFC" strokeWidth={2} />
-          <Text style={styles.actionBtnText}>卖出 (Sell)</Text>
+          <Text style={styles.actionBtnText}>{t('totalCard.sell', language)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} onPress={onPressAnalysis} activeOpacity={0.7}>
           <AnalyticsChartIcon size={16} color="#A7F3D0" strokeWidth={2} />
-          <Text style={styles.actionBtnText}>资产分析</Text>
+          <Text style={styles.actionBtnText}>{t('totalCard.analytics', language)}</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -162,24 +162,26 @@ export class PnLEngine {
         avgCost = new BigNumber(newAvg);
         currentQty = currentQty.plus(txAmount);
       } else if (tx.type === 'SELL') {
-        // 卖出前严格防超卖校验
+        // 卖出流水防崩溃与超卖容错处理：若流水中卖出数量超出持仓，优雅截断并记录日志，避免抛出未捕获异常导致 UI 崩溃
+        let validSellAmount = txAmount;
         if (txAmount.isGreaterThan(currentQty)) {
-          throw new Error(
-            `Transaction error for ${asset.symbol}: sell amount (${txAmount.toString()}) exceeds available holding (${currentQty.toString()})`
+          console.warn(
+            `[PnLEngine] Oversell detected for ${asset.symbol}: sell amount (${txAmount.toString()}) exceeds available holding (${currentQty.toString()}). Gracefully capped.`
           );
+          validSellAmount = currentQty;
         }
 
-        // 结转已实现盈亏
+        // 结转已实现盈亏 (基于实际扣减的持仓数量)
         const realized = this.calculateRealizedPnL(
           txPrice,
           avgCost,
-          txAmount,
+          validSellAmount,
           txFee
         );
         totalRealizedPnL = totalRealizedPnL.plus(realized);
 
         // 扣减持仓量，均价不变
-        currentQty = currentQty.minus(txAmount);
+        currentQty = currentQty.minus(validSellAmount);
 
         // 若完全清仓，均价归零
         if (currentQty.isZero()) {

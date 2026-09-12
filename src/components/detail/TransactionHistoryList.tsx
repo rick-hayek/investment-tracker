@@ -2,12 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Transaction, CurrencyType } from '../../domain/types';
 import { formatCurrencyValue } from '../../domain/currency';
+import { LanguageType, t } from '../../i18n';
 
 export interface TransactionHistoryListProps {
   transactions: Transaction[];
   currentPrice: number;
   averageCost: number;
   currency: CurrencyType;
+  language?: LanguageType;
 }
 
 export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
@@ -15,6 +17,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
   currentPrice,
   averageCost,
   currency,
+  language = 'zh',
 }) => {
   // 按成交时间降序排列 (最新在前)
   const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
@@ -22,7 +25,9 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
   if (sorted.length === 0) {
     return (
       <View style={styles.emptyCard}>
-        <Text style={styles.emptyText}>暂无历史交易流水</Text>
+        <Text style={styles.emptyText}>
+          {language === 'zh' ? '暂无历史交易流水' : 'No transactions recorded'}
+        </Text>
       </View>
     );
   }
@@ -30,8 +35,10 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.titleRow}>
-        <Text style={styles.sectionTitle}>历史交易明细流水</Text>
-        <Text style={styles.countText}>共 {sorted.length} 笔记录</Text>
+        <Text style={styles.sectionTitle}>{t('detail.transactionHistory', language)}</Text>
+        <Text style={styles.countText}>
+          {language === 'zh' ? `共 ${sorted.length} 笔记录` : `${sorted.length} records`}
+        </Text>
       </View>
 
       <View style={styles.list}>
@@ -54,7 +61,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
           }
 
           const isPnlPositive = pnlAmountUSD >= 0;
-          const dateStr = new Date(tx.timestamp).toLocaleString('zh-CN', {
+          const dateStr = new Date(tx.timestamp).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
@@ -69,7 +76,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
                 <View style={styles.badgeRow}>
                   <View style={[styles.typeBadge, isBuy ? styles.badgeBuy : styles.badgeSell]}>
                     <Text style={[styles.typeText, isBuy ? styles.textBuy : styles.textSell]}>
-                      {isBuy ? '买入' : '卖出'}
+                      {isBuy ? t('transaction.buy', language) : t('transaction.sell', language)}
                     </Text>
                   </View>
                   <View style={styles.platformBadge}>
@@ -86,12 +93,12 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
                     @ {formatCurrencyValue(tx.price, currency)}
                   </Text>
                   <Text style={styles.totalSubText}>
-                    (总额 {formatCurrencyValue(totalValUSD, currency)})
+                    ({language === 'zh' ? '总额' : 'Total'} {formatCurrencyValue(totalValUSD, currency)})
                   </Text>
                 </View>
 
                 {tx.notes ? (
-                  <Text style={styles.notesText}>备注: {tx.notes}</Text>
+                  <Text style={styles.notesText}>{language === 'zh' ? '备注' : 'Notes'}: {tx.notes}</Text>
                 ) : null}
               </View>
 
@@ -107,7 +114,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
                 </Text>
                 <View style={[styles.statusTag, isBuy ? styles.statusUnrealized : styles.statusRealized]}>
                   <Text style={[styles.statusTagText, isBuy ? styles.statusTextUnrealized : styles.statusTextRealized]}>
-                    {isBuy ? '未实现盈亏' : '已实现结转'}
+                    {isBuy ? t('detail.unrealized', language) : t('detail.realized', language)}
                   </Text>
                 </View>
               </View>

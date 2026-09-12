@@ -2,17 +2,20 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { AssetHolding, CurrencyType } from '../../domain/types';
 import { formatCurrencyValue } from '../../domain/currency';
+import { LanguageType, t } from '../../i18n';
 
 export interface AssetDetailHeaderProps {
   holding: AssetHolding;
   currency: CurrencyType;
   privacyMode?: boolean;
+  language?: LanguageType;
 }
 
 export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
   holding,
   currency,
   privacyMode = false,
+  language = 'zh',
 }) => {
   const isPositive = holding.unrealizedPnL >= 0;
   const is24hPositive = holding.change24hPercent >= 0;
@@ -21,7 +24,7 @@ export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
     <View style={styles.card}>
       {/* 顶部标签与平台徽标 */}
       <View style={styles.headerRow}>
-        <Text style={styles.cardLabel}>Current Holding Value</Text>
+        <Text style={styles.cardLabel}>{t('detail.currentHoldingValue', language)}</Text>
         {holding.platform && (
           <View style={styles.platformBadge}>
             <Text style={styles.platformBadgeText}>{holding.platform}</Text>
@@ -58,28 +61,28 @@ export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
       {/* 指标矩阵 (持仓均价、总成本、实时单价、24h涨跌) */}
       <View style={styles.metricsGrid}>
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>持仓成本均价</Text>
+          <Text style={styles.metricLabel}>{t('detail.costBasis', language)}</Text>
           <Text style={styles.metricValue}>
             {formatCurrencyValue(holding.averageCost, currency, { privacyMode })}
           </Text>
         </View>
 
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>当前持仓总成本</Text>
+          <Text style={styles.metricLabel}>{t('detail.totalCost', language)}</Text>
           <Text style={styles.metricValue}>
             {formatCurrencyValue(holding.totalCostBasis, currency, { privacyMode })}
           </Text>
         </View>
 
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>最新市场单价</Text>
+          <Text style={styles.metricLabel}>{t('detail.marketPrice', language)}</Text>
           <Text style={styles.metricValue}>
             {formatCurrencyValue(holding.currentPrice, currency)}
           </Text>
         </View>
 
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>24小时涨跌幅</Text>
+          <Text style={styles.metricLabel}>{t('detail.change24h', language)}</Text>
           <Text style={[styles.metricValue, is24hPositive ? styles.textGreen : styles.textRed]}>
             {is24hPositive ? '+' : ''}
             {holding.change24hPercent.toFixed(2)}%

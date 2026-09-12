@@ -1,5 +1,5 @@
 import { PnLEngine } from '../src/domain/calculations/pnlEngine';
-import { Asset, Transaction } from '../src/domain/types';
+import { Asset, Transaction, AssetHolding } from '../src/domain/types';
 
 describe('PnLEngine (财务与盈亏计算引擎)', () => {
   describe('calculateWeightedAverageCost (移动加权平均成本)', () => {
@@ -242,7 +242,7 @@ describe('PnLEngine (财务与盈亏计算引擎)', () => {
       expect(holding.totalQuantity).toBe(0.00177777);
     });
 
-    it('历史流水超卖时抛出明确异常', () => {
+    it('历史流水超卖时优雅降级处理，不抛出异常破坏渲染', () => {
       const transactions: Transaction[] = [
         {
           id: 'tx-1',
@@ -266,9 +266,15 @@ describe('PnLEngine (财务与盈亏计算引擎)', () => {
         },
       ];
 
+      let holding: AssetHolding | undefined;
       expect(() => {
-        PnLEngine.calculateHoldingFromTransactions(mockAsset, transactions, 60000);
-      }).toThrow(/exceeds available holding/);
+        holding = PnLEngine.calculateHoldingFromTransactions(mockAsset, transactions, 60000);
+      }).not.toThrow();
+
+      expect(holding).toBeDefined();
+      expect(holding!.totalQuantity).toBe(0);
+      // 已实现盈亏基于实际可扣减的 0.5 计算: (60000 - 50000) * 0.5 = 5000
+      expect(holding!.realizedPnL).toBe(5000);
     });
   });
 

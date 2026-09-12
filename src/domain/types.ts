@@ -82,6 +82,8 @@ export interface PortfolioSummary {
   assetHoldings: AssetHolding[]; // 各资产明细
 }
 
+import { LanguageType } from '../i18n/types';
+
 /**
  * 用户配置模型
  */
@@ -91,5 +93,6 @@ export interface UserSettings {
   biometricLock?: boolean; // 是否启用生物识别 (暂缓)
   appSwitcherBlur: boolean; // 切出多任务后台是否显示防截屏遮罩
   theme: 'dark' | 'light';
+  language: LanguageType;
 }
 

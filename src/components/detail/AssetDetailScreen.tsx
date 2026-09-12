@@ -8,6 +8,7 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { AssetHolding, CurrencyType, Transaction, TransactionType, PlatformType } from '../../domain/types';
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
@@ -15,6 +16,7 @@ import { ExchangeService, defaultExchangeService } from '../../services/exchange
 import { AssetDetailHeader } from './AssetDetailHeader';
 import { InteractiveChart } from '../charts/InteractiveChart';
 import { TransactionHistoryList } from './TransactionHistoryList';
+import { LanguageType, t } from '../../i18n';
 import {
   ChevronLeftIcon,
   StarIcon,
@@ -27,6 +29,7 @@ export interface AssetDetailScreenProps {
   holding: AssetHolding | null;
   currency: CurrencyType;
   privacyMode?: boolean;
+  language?: LanguageType;
   onClose: () => void;
   onOpenAddTransaction: (type: TransactionType, symbol: string, platform: PlatformType) => void;
   txRepo?: TransactionRepository;
@@ -38,6 +41,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
   holding,
   currency,
   privacyMode = false,
+  language = 'zh',
   onClose,
   onOpenAddTransaction,
   txRepo,
@@ -105,7 +109,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
         {/* 页面核心滚动区域 */}
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* 1. 顶部持仓价值总览卡片 */}
-          <AssetDetailHeader holding={holding} currency={currency} privacyMode={privacyMode} />
+          <AssetDetailHeader holding={holding} currency={currency} privacyMode={privacyMode} language={language} />
 
           {/* 2. 交互式价格走势图表 (含分时切换与长按十字光标) */}
           <InteractiveChart
@@ -124,6 +128,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
             currentPrice={holding.currentPrice}
             averageCost={holding.averageCost}
             currency={currency}
+            language={language}
           />
         </ScrollView>
 
@@ -134,8 +139,8 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
             onPress={() => onOpenAddTransaction('BUY', holding.symbol, currentPlatform)}
             activeOpacity={0.8}
           >
-            <DepositPlusIcon size={18} color="#FFFFFF" />
-            <Text style={styles.bottomBtnText}>买入此币</Text>
+            <DepositPlusIcon size={16} color="#FFFFFF" />
+            <Text style={styles.bottomBtnText}>{t('detail.buyThisToken', language)}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -143,8 +148,8 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
             onPress={() => onOpenAddTransaction('SELL', holding.symbol, currentPlatform)}
             activeOpacity={0.8}
           >
-            <WithdrawArrowIcon size={18} color="#FFFFFF" />
-            <Text style={styles.bottomBtnText}>卖出记账</Text>
+            <WithdrawArrowIcon size={16} color="#FFFFFF" />
+            <Text style={styles.bottomBtnText}>{t('detail.sellThisToken', language)}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -215,7 +220,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 90, // 为底部吸底按钮留白
+    paddingBottom: 76, // 为底部吸底按钮留白
   },
   bottomBar: {
     position: 'absolute',
@@ -225,38 +230,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 24,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
     backgroundColor: 'rgba(9, 13, 22, 0.95)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   bottomBtn: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 14,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 11,
+    borderRadius: 12,
   },
   btnBuy: {
     backgroundColor: '#10B981',
     shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
   btnSell: {
     backgroundColor: '#EF4444',
     shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
   bottomBtnText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
 });

@@ -82,6 +82,7 @@ describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)'
         privacyMode: true,
         appSwitcherBlur: true,
         theme: 'dark',
+        language: 'zh',
       });
 
       const parsed = DataExportService.validateAndParseJSONBackup(json);
@@ -91,6 +92,7 @@ describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)'
       expect(parsed.data?.transactions.length).toBe(2);
       expect(parsed.data?.settings?.baseCurrency).toBe('CNY');
       expect(parsed.data?.settings?.privacyMode).toBe(true);
+      expect(parsed.data?.settings?.language).toBe('zh');
     });
 
     it('检测到无效或损坏的 JSON 结构时返回明确错误提示', () => {

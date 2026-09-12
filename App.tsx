@@ -27,7 +27,8 @@ import { PrivacyShield } from './src/components/common/PrivacyShield';
 import { defaultExchangeService } from './src/services/exchangeService';
 import { defaultForexService } from './src/services/forexService';
 import { useMarketPoll } from './src/services/useMarketPoll';
-import { UserAvatarIcon, BellIcon } from './src/components/common/Icons';
+import { MenuIcon, BellIcon } from './src/components/common/Icons';
+import { LanguageType, t } from './src/i18n';
 
 const INITIAL_DEMO_ASSETS: Asset[] = [
   { id: 'btc_binance', symbol: 'BTC', name: 'Bitcoin', platform: 'Binance', createdAt: 1700000000000 },
@@ -235,14 +236,18 @@ export default function App() {
     for (const asset of assets) {
       const txs = transactions.filter((t) => t.assetId === asset.id);
       const cur = marketPrices[asset.id] || marketPrices[asset.symbol.toLowerCase()] || { price: 0, change24h: 0 };
-      const holding = PnLEngine.calculateHoldingFromTransactions(
-        asset,
-        txs,
-        cur.price,
-        cur.change24h
-      );
-      if (holding.totalQuantity > 0 || txs.length > 0) {
-        list.push(holding);
+      try {
+        const holding = PnLEngine.calculateHoldingFromTransactions(
+          asset,
+          txs,
+          cur.price,
+          cur.change24h
+        );
+        if (holding.totalQuantity > 0 || txs.length > 0) {
+          list.push(holding);
+        }
+      } catch (err) {
+        console.warn(`[App] Error calculating holding for ${asset.symbol}:`, err);
       }
     }
 
@@ -293,20 +298,22 @@ export default function App() {
     await refreshPrices();
   };
 
+  const currentLanguage = userSettings.language || 'zh';
+
   return (
     <SafeAreaView style={styles.container} {...edgeSwipeResponder.panHandlers}>
       <StatusBar barStyle="light-content" backgroundColor="#090D16" />
 
-      {/* Navigation Bar Header (100% 匹配 01_home_screen.jpg) */}
+      {/* Navigation Bar Header */}
       <View style={styles.navBar}>
         <TouchableOpacity
-          style={styles.avatarButton}
+          style={styles.menuButton}
           onPress={() => setIsDrawerOpen(true)}
           activeOpacity={0.7}
         >
-          <UserAvatarIcon size={20} color="#94A3B8" />
+          <MenuIcon size={20} color="#F8FAFC" />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Krypton</Text>
+        <Text style={styles.navTitle}>Investment Tracker</Text>
         <TouchableOpacity
           style={styles.iconButton}
           onPress={() => openAddModal('BUY')}
@@ -322,6 +329,7 @@ export default function App() {
         currency={baseCurrency}
         refreshing={refreshing}
         privacyMode={userSettings.privacyMode}
+        language={currentLanguage}
         onRefresh={onManualRefresh}
         onPressAsset={(holding) => {
           setSelectedHolding(holding);
@@ -337,6 +345,7 @@ export default function App() {
               currency={baseCurrency}
               isPolling={isPolling}
               privacyMode={userSettings.privacyMode}
+              language={currentLanguage}
               onPressBuy={() => openAddModal('BUY')}
               onPressSell={() => openAddModal('SELL')}
               onPressAnalysis={() => setAllocationModalVisible(true)}
@@ -346,9 +355,9 @@ export default function App() {
 
             {/* Section Title (100% 匹配 01_home_screen.jpg) */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Assets</Text>
+              <Text style={styles.sectionTitle}>{t('nav.assets', currentLanguage)}</Text>
               <TouchableOpacity onPress={() => openAddModal('BUY')} activeOpacity={0.7}>
-                <Text style={styles.addLink}>+ Add</Text>
+                <Text style={styles.addLink}>{t('holdings.addLink', currentLanguage)}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -361,6 +370,7 @@ export default function App() {
         initialType={modalType}
         initialSymbol={modalSymbol}
         initialPlatform={modalPlatform}
+        language={currentLanguage}
         onClose={() => setModalVisible(false)}
         onSuccess={handleTransactionSuccess}
         assetRepo={assetRepo}
@@ -383,6 +393,7 @@ export default function App() {
         holding={activeDetailHolding}
         currency={baseCurrency}
         privacyMode={userSettings.privacyMode}
+        language={currentLanguage}
         onClose={() => setDetailVisible(false)}
         onOpenAddTransaction={(type, symbol, platform) => {
           openAddModal(type, symbol, platform);
@@ -414,6 +425,8 @@ export default function App() {
         onCurrencyChange={(next) => handleUpdateSettings({ baseCurrency: next })}
         privacyMode={userSettings.privacyMode}
         onTogglePrivacy={() => handleUpdateSettings({ privacyMode: !userSettings.privacyMode })}
+        language={currentLanguage}
+        onLanguageChange={(nextLang) => handleUpdateSettings({ language: nextLang })}
         onNavigateSettings={() => {
           setIsDrawerOpen(false);
           setSettingsVisible(true);
@@ -421,7 +434,10 @@ export default function App() {
       />
 
       {/* 切出系统后台时的防截屏隐私高斯遮罩 */}
-      <PrivacyShield visible={isBackgroundBlocked && userSettings.appSwitcherBlur} />
+      <PrivacyShield
+        visible={isBackgroundBlocked && userSettings.appSwitcherBlur}
+        language={currentLanguage}
+      />
     </SafeAreaView>
   );
 }
@@ -439,13 +455,13 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 14,
   },
-  avatarButton: {
+  menuButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1E283C',
-    borderWidth: 1.5,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { CurrencyType } from '../../domain/types';
 import { CURRENCY_CONFIGS, getNextCurrency } from '../../domain/currency';
+import { LanguageType, t, getLanguageName } from '../../i18n';
 import {
   HomeIcon,
   SettingsGearIcon,
@@ -34,6 +35,8 @@ export interface AppDrawerProps {
   privacyMode?: boolean;
   onTogglePrivacy?: () => void;
   biometricEnabled?: boolean;
+  language?: LanguageType;
+  onLanguageChange?: (next: LanguageType) => void;
 }
 
 export const AppDrawer: React.FC<AppDrawerProps> = ({
@@ -47,6 +50,8 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
   privacyMode = false,
   onTogglePrivacy,
   biometricEnabled = false,
+  language = 'zh',
+  onLanguageChange,
 }) => {
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -192,7 +197,7 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
                   activeScreen === 'home' && styles.menuTitleActive,
                 ]}
               >
-                Portfolio Home
+                {t('drawer.portfolioHome', language)}
               </Text>
             </TouchableOpacity>
 
@@ -214,7 +219,7 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
                   activeScreen === 'settings' && styles.menuTitleActive,
                 ]}
               >
-                Settings & Profile
+                {t('drawer.settingsAndProfile', language)}
               </Text>
             </TouchableOpacity>
           </View>
@@ -228,9 +233,24 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             onPress={handleCycleCurrency}
             activeOpacity={0.7}
           >
-            <Text style={styles.prefLabel}>Base Currency:</Text>
+            <Text style={styles.prefLabel}>{t('drawer.baseCurrencyLabel', language)}:</Text>
             <Text style={styles.currencyValueText}>
               {CURRENCY_CONFIGS[currency]?.name || currency} ⇄
+            </Text>
+          </TouchableOpacity>
+
+          {/* 语言切换 */}
+          <TouchableOpacity
+            style={styles.prefRow}
+            onPress={() => {
+              const next = language === 'zh' ? 'en' : 'zh';
+              onLanguageChange?.(next);
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.prefLabel}>{t('settings.language', language)}:</Text>
+            <Text style={styles.currencyValueText}>
+              {getLanguageName(language)} ⇄
             </Text>
           </TouchableOpacity>
 
@@ -240,21 +260,21 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             onPress={onTogglePrivacy}
             activeOpacity={0.7}
           >
-            <Text style={styles.prefLabel}>Privacy Mode:</Text>
+            <Text style={styles.prefLabel}>{t('drawer.privacyModeLabel', language)}:</Text>
             <Text style={privacyMode ? styles.secActiveText : styles.secDisabledText}>
-              {privacyMode ? 'ON' : 'OFF'}
+              {privacyMode ? t('common.on', language) : t('common.off', language)}
             </Text>
           </TouchableOpacity>
 
           {/* 生物识别安全锁状态 */}
           <View style={styles.prefRow}>
-            <Text style={styles.prefLabel}>Biometric Lock (Face ID):</Text>
-            <Text style={styles.secDisabledText}>Planned</Text>
+            <Text style={styles.prefLabel}>{t('drawer.biometricLockLabel', language)}:</Text>
+            <Text style={styles.secDisabledText}>{t('drawer.planned', language)}</Text>
           </View>
 
           {/* 版本号 */}
           <View style={styles.versionRow}>
-            <Text style={styles.versionText}>v1.0.0</Text>
+            <Text style={styles.versionText}>{t('drawer.version', language)}</Text>
           </View>
         </View>
       </Animated.View>

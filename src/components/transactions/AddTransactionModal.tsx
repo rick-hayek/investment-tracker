@@ -10,6 +10,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { PlatformType, TransactionType, Asset } from '../../domain/types';
 import { PnLEngine } from '../../domain/calculations/pnlEngine';
@@ -17,6 +18,7 @@ import { AssetRepository } from '../../database/repositories/assetRepository';
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
 import { ExchangeService, defaultExchangeService } from '../../services/exchangeService';
 import { extractBaseSymbol, resolveCoinGeckoId, KNOWN_ASSETS } from '../../services/symbolMapper';
+import { LanguageType, t } from '../../i18n';
 
 import { CloseCrossIcon, SearchIcon } from '../common/Icons';
 
@@ -25,6 +27,7 @@ interface AddTransactionModalProps {
   initialType?: TransactionType;
   initialSymbol?: string;
   initialPlatform?: PlatformType;
+  language?: LanguageType;
   onClose: () => void;
   onSuccess?: () => void;
   assetRepo?: AssetRepository;
@@ -44,6 +47,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   initialType = 'BUY',
   initialSymbol = 'BTC',
   initialPlatform = 'Binance',
+  language = 'zh',
   onClose,
   onSuccess,
   assetRepo,
@@ -82,34 +86,27 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const refreshHolding = useCallback(async () => {
     if (!txRepo || !symbol.trim()) {
       setHoldingQty(0);
-      return;
+      return 0;
     }
     try {
       const base = extractBaseSymbol(symbol);
       const targetAssetId = `${base.toLowerCase()}_${platform.toLowerCase()}`;
       
-      // 同时查询特定平台的 assetId 以及可能的通用 assetId
-      const txsNew = await txRepo.findByAssetId(targetAssetId);
-      const txsLegacy = (await txRepo.findByAssetId(base.toLowerCase())).filter(
-        (t) => t.platform === platform
-      );
-
-      const uniqueTxs = new Map<string, any>();
-      for (const t of [...txsNew, ...txsLegacy]) {
-        uniqueTxs.set(t.id, t);
-      }
-
+      const txs = await txRepo.findByAssetId(targetAssetId);
       let total = 0;
-      for (const t of uniqueTxs.values()) {
+      for (const t of txs) {
         if (t.type === 'BUY') {
           total += t.amount;
         } else if (t.type === 'SELL') {
           total -= t.amount;
         }
       }
-      setHoldingQty(Math.max(0, total));
+      const holding = Math.max(0, total);
+      setHoldingQty(holding);
+      return holding;
     } catch {
       setHoldingQty(0);
+      return 0;
     }
   }, [txRepo, symbol, platform]);
 
@@ -117,7 +114,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     if (visible) {
       refreshHolding();
     }
-  }, [visible, symbol, refreshHolding]);
+  }, [visible, symbol, platform, refreshHolding]);
+
+  // 实时检测卖出是否超卖，提供直观 UI 预警
+  const parsedAmount = parseFloat(amountStr);
+  const isOverselling = useMemo(() => {
+    if (txType === 'BUY') return false;
+    return !isNaN(parsedAmount) && parsedAmount > holdingQty;
+  }, [txType, parsedAmount, holdingQty]);
 
   // 获取该平台的格式提示
   const formatHint = useMemo(() => {
@@ -144,7 +148,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   // 一键填充当前市价
   const handleFetchCurrentPrice = async () => {
     if (!symbol.trim()) {
-      setErrorMessage('请先输入代币符号');
+      setErrorMessage(language === 'zh' ? '请先输入代币符号' : 'Please enter token symbol first');
       return;
     }
     try {
@@ -156,12 +160,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setPriceStr(ticker.priceUSD.toString());
 
       if (ticker.isFallback) {
-        setPriceNotice('（主平台异常，已使用 CoinGecko 现价兜底）');
+        setPriceNotice(language === 'zh' ? '（主平台异常，已使用 CoinGecko 现价兜底）' : '(Fallback to CoinGecko price)');
       } else {
         setPriceNotice(null);
       }
     } catch (err: any) {
-      setErrorMessage(`获取现价失败: ${err?.message || '网络异常'}`);
+      setErrorMessage(`${language === 'zh' ? '获取现价失败' : 'Failed to fetch price'}: ${err?.message || 'Network error'}`);
     } finally {
       setIsFetchingPrice(false);
     }
@@ -179,22 +183,77 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     const q = parseFloat(amountStr);
 
     if (!symbol.trim()) {
-      setErrorMessage('请输入代币符号');
+      setErrorMessage(language === 'zh' ? '请输入代币符号' : 'Please enter token symbol');
       return;
+    }
+
+    if (isNaN(q) || q <= 0) {
+      setErrorMessage(language === 'zh' ? '交易数量必须大于 0' : 'Quantity must be greater than 0');
+      return;
+    }
+
+    if (isNaN(p) || p < 0) {
+      setErrorMessage(language === 'zh' ? '成交价格不能小于 0' : 'Price cannot be negative');
+      return;
+    }
+
+    const baseSymbol = extractBaseSymbol(symbol);
+    const assetId = `${baseSymbol.toLowerCase()}_${platform.toLowerCase()}`;
+
+    // 针对卖出操作，执行权威实时持仓查验与优雅拦截
+    if (txType === 'SELL') {
+      let currentHolding = holdingQty;
+      if (txRepo) {
+        try {
+          const freshTxs = await txRepo.findByAssetId(assetId);
+          let sum = 0;
+          for (const t of freshTxs) {
+            if (t.type === 'BUY') sum += t.amount;
+            else if (t.type === 'SELL') sum -= t.amount;
+          }
+          currentHolding = Math.max(0, sum);
+          setHoldingQty(currentHolding);
+        } catch {
+          // fallback to holdingQty
+        }
+      }
+
+      // 如果卖出数量超过持仓可用量，弹出优雅提示并拦截
+      if (q > currentHolding) {
+        const title = language === 'zh' ? '持仓不足提示' : 'Insufficient Holding';
+        const msg = language === 'zh'
+          ? `您在 ${platform} 当前仅持有 ${currentHolding} ${baseSymbol}，无法卖出 ${q} ${baseSymbol}。\n\n请修改卖出数量后再试。`
+          : `You currently only hold ${currentHolding} ${baseSymbol} on ${platform}, cannot sell ${q} ${baseSymbol}.\n\nPlease adjust the quantity and try again.`;
+
+        Alert.alert(title, msg, [
+          {
+            text: language === 'zh' ? '一键全部卖出' : 'Sell Max',
+            onPress: () => setAmountStr(currentHolding.toString()),
+          },
+          {
+            text: language === 'zh' ? '我知道了' : 'OK',
+            style: 'cancel',
+          },
+        ]);
+
+        setErrorMessage(
+          language === 'zh'
+            ? `卖出数量 (${q}) 超出当前持仓可用量 (${currentHolding} ${baseSymbol})`
+            : `Sell quantity (${q}) exceeds available holding (${currentHolding} ${baseSymbol})`
+        );
+        return;
+      }
     }
 
     // 防超卖与数值校验
     const validation = PnLEngine.validateTransaction(txType, q, p, holdingQty);
     if (!validation.valid) {
-      setErrorMessage(validation.error || '输入参数有误');
+      setErrorMessage(validation.error || (language === 'zh' ? '输入参数有误' : 'Invalid parameters'));
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const baseSymbol = extractBaseSymbol(symbol);
-      const assetId = `${baseSymbol.toLowerCase()}_${platform.toLowerCase()}`;
-
       // 1. 如果提供了 AssetRepository，确保持仓资产记录存在 (每个平台拥有独立资产记录)
       if (assetRepo) {
         let existing = await assetRepo.findById(assetId);
@@ -231,7 +290,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      setErrorMessage(`保存交易失败: ${err?.message || '系统错误'}`);
+      setErrorMessage(`${language === 'zh' ? '保存交易失败' : 'Failed to save transaction'}: ${err?.message || 'System error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -257,7 +316,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
               <CloseCrossIcon size={16} color="#94A3B8" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Record Transaction</Text>
+            <Text style={styles.modalTitle}>{t('transaction.recordTitle', language)}</Text>
             <View style={styles.headerSpacer} />
           </View>
 
@@ -275,7 +334,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 onPress={() => setTxType('BUY')}
               >
                 <Text style={[styles.toggleBtnText, isBuy && styles.toggleBtnTextActive]}>
-                  Buy
+                  {t('transaction.buy', language)}
                 </Text>
               </TouchableOpacity>
 
@@ -287,7 +346,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 onPress={() => setTxType('SELL')}
               >
                 <Text style={[styles.toggleBtnText, !isBuy && styles.toggleBtnTextActive]}>
-                  Sell
+                  {t('transaction.sell', language)}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -301,7 +360,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
             {/* 平台选择器 Chips */}
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Select Platform</Text>
+              <Text style={styles.formLabel}>{t('transaction.selectPlatform', language)}</Text>
               <View style={styles.platformRow}>
                 {PLATFORMS.map((item) => {
                   const isSelected = platform === item.key;
@@ -331,10 +390,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             {/* 代币符号与格式建议 */}
             <View style={styles.formGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>Token Symbol</Text>
+                <Text style={styles.formLabel}>{t('transaction.tokenSymbol', language)}</Text>
                 {!isBuy && (
                   <Text style={styles.holdingInfoText}>
-                    Available: {holdingQty}
+                    {t('transaction.available', language)}: {holdingQty}
                   </Text>
                 )}
               </View>
@@ -352,7 +411,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             {/* 成交单价输入与一键市价填充 */}
             <View style={styles.formGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>Buy Price / Cost (USD)</Text>
+                <Text style={styles.formLabel}>
+                  {isBuy ? t('transaction.buyPrice', language) : t('transaction.sellPrice', language)} (USD)
+                </Text>
                 <TouchableOpacity
                   style={styles.quickPriceBtn}
                   onPress={handleFetchCurrentPrice}
@@ -361,7 +422,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   {isFetchingPrice ? (
                     <ActivityIndicator size="small" color="#38BDF8" />
                   ) : (
-                    <Text style={styles.quickPriceBtnText}>Use Market Price</Text>
+                    <Text style={styles.quickPriceBtnText}>{t('transaction.useMarketPrice', language)}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -381,38 +442,50 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             {/* 交易数量输入 */}
             <View style={styles.formGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>数量 (Quantity)</Text>
+                <Text style={styles.formLabel}>{t('transaction.quantityAmount', language)}</Text>
                 {!isBuy && holdingQty > 0 && (
                   <TouchableOpacity onPress={handleSetMaxSell} style={styles.maxChip}>
-                    <Text style={styles.maxChipText}>全部卖出</Text>
+                    <Text style={styles.maxChipText}>{language === 'zh' ? '全部卖出' : 'Max'}</Text>
                   </TouchableOpacity>
                 )}
               </View>
               <TextInput
-                style={styles.inputBox}
+                style={[styles.inputBox, isOverselling && styles.inputBoxError]}
                 value={amountStr}
-                onChangeText={setAmountStr}
+                onChangeText={(val) => {
+                  setAmountStr(val);
+                  if (errorMessage) setErrorMessage(null);
+                }}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
                 placeholderTextColor="#64748B"
               />
+              {isOverselling && (
+                <View style={styles.inlineWarningRow}>
+                  <Text style={styles.inlineWarningText}>
+                    {language === 'zh'
+                      ? `⚠️ 卖出数量 (${amountStr}) 超出可用持仓 (${holdingQty})`
+                      : `⚠️ Quantity (${amountStr}) exceeds available holding (${holdingQty})`}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* 备忘备注 (可选) */}
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>备忘备注 (Notes - 可选)</Text>
+              <Text style={styles.formLabel}>{t('transaction.notes', language)}</Text>
               <TextInput
                 style={[styles.inputBox, styles.notesBox]}
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="添加交易备注..."
+                placeholder={t('transaction.notesPlaceholder', language)}
                 placeholderTextColor="#64748B"
               />
             </View>
 
             {/* 交易总金额汇总卡片 */}
             <View style={styles.summaryBox}>
-              <Text style={styles.sumLabel}>交易总金额 (Total)</Text>
+              <Text style={styles.sumLabel}>{language === 'zh' ? '交易总金额 (Total)' : 'Total Amount'}</Text>
               <Text style={styles.sumVal}>${calculatedTotal}</Text>
             </View>
 
@@ -430,7 +503,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.submitBtnText}>
-                  {isBuy ? '确认记录买入' : '确认记录卖出'}
+                  {isBuy ? t('transaction.confirmBuy', language) : t('transaction.confirmSell', language)}
                 </Text>
               )}
             </TouchableOpacity>
@@ -683,5 +756,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.2,
+  },
+  inputBoxError: {
+    borderColor: '#EF4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+  },
+  inlineWarningRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inlineWarningText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

@@ -1,21 +1,24 @@
 import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
+import { LanguageType, t } from '../../i18n';
+import { LockIcon } from './Icons';
 
 interface PrivacyShieldProps {
   visible: boolean;
+  language?: LanguageType;
 }
 
-export const PrivacyShield: React.FC<PrivacyShieldProps> = ({ visible }) => {
+export const PrivacyShield: React.FC<PrivacyShieldProps> = ({ visible, language = 'zh' }) => {
   if (!visible) return null;
 
   return (
     <View style={styles.container} pointerEvents="auto">
       <View style={styles.card}>
         <View style={styles.iconCircle}>
-          <Text style={styles.iconText}>🛡️</Text>
+          <LockIcon size={32} color="#38BDF8" />
         </View>
-        <Text style={styles.title}>隐私保护中</Text>
-        <Text style={styles.subtitle}>已阻断后台多任务截屏与数据窥探</Text>
+        <Text style={styles.title}>{t('privacy.shieldTitle', language)}</Text>
+        <Text style={styles.subtitle}>{t('privacy.shieldSubtitle', language)}</Text>
       </View>
     </View>
   );

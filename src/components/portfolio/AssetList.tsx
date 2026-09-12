@@ -10,6 +10,7 @@ import {
 import { AssetHolding, CurrencyType } from '../../domain/types';
 import { formatCurrencyValue } from '../../domain/currency';
 import { KNOWN_ASSETS } from '../../services/symbolMapper';
+import { LanguageType, t } from '../../i18n';
 
 import { BtcLogo, EthLogo, SolLogo } from '../common/Icons';
 
@@ -18,6 +19,7 @@ export interface AssetListProps {
   currency: CurrencyType;
   refreshing: boolean;
   privacyMode?: boolean;
+  language?: LanguageType;
   onRefresh: () => void;
   onPressAsset: (holding: AssetHolding) => void;
   onPressAdd: () => void;
@@ -29,6 +31,7 @@ export const AssetList: React.FC<AssetListProps> = ({
   currency,
   refreshing,
   privacyMode = false,
+  language = 'zh',
   onRefresh,
   onPressAsset,
   onPressAdd,
@@ -85,7 +88,7 @@ export const AssetList: React.FC<AssetListProps> = ({
             <Text style={styles.assetValue}>
               {formatCurrencyValue(item.marketValue, currency, { privacyMode })}
             </Text>
-            <Text style={styles.pnlLabel}>P&L</Text>
+            <Text style={styles.pnlLabel}>{t('holdings.pnl', language)}</Text>
           </View>
           <View style={styles.rightBottomRow}>
             <Text style={styles.assetSubRight}>
@@ -106,7 +109,7 @@ export const AssetList: React.FC<AssetListProps> = ({
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>暂无持仓资产记录，点击上方按钮开始记账</Text>
+      <Text style={styles.emptyText}>{t('holdings.emptyText', language)}</Text>
     </View>
   );
 

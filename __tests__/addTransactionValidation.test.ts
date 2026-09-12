@@ -4,6 +4,7 @@ import { runMigrations, setDatabaseInstance } from '../src/database/db';
 import { AssetRepository } from '../src/database/repositories/assetRepository';
 import { TransactionRepository } from '../src/database/repositories/transactionRepository';
 import { extractBaseSymbol, resolveCoinGeckoId } from '../src/services/symbolMapper';
+import { Transaction } from '../src/domain/types';
 
 describe('Add Transaction Validation & Persistence (交易录入与防超卖校验测试)', () => {
   let db: NodeSqliteAdapter;
@@ -211,6 +212,51 @@ describe('Add Transaction Validation & Persistence (交易录入与防超卖校�
       const okxOversell = PnLEngine.validateTransaction('SELL', 0.8, 68000, okxHolding.totalQuantity);
       expect(okxOversell.valid).toBe(false);
       expect(okxOversell.error).toContain('超出当前持仓可用量');
+    });
+
+    it('即使历史流水意外存在超卖记录，计算引擎亦能优雅处理而不崩溃', async () => {
+      const asset = {
+        id: 'btc_binance',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        platform: 'Binance' as const,
+        createdAt: Date.now(),
+      };
+
+      // 仅买入 1.0 BTC，但流水里有卖出 2.0 BTC
+      const dirtyTxs: Transaction[] = [
+        {
+          id: 'tx_b1',
+          assetId: 'btc_binance',
+          type: 'BUY',
+          amount: 1.0,
+          price: 60000,
+          platform: 'Binance',
+          timestamp: 1000,
+          createdAt: 1000,
+        },
+        {
+          id: 'tx_s1',
+          assetId: 'btc_binance',
+          type: 'SELL',
+          amount: 2.0,
+          price: 65000,
+          platform: 'Binance',
+          timestamp: 2000,
+          createdAt: 2000,
+        },
+      ];
+
+      // 验证不会抛出渲染致命错误
+      let holding: any;
+      expect(() => {
+        holding = PnLEngine.calculateHoldingFromTransactions(asset, dirtyTxs, 65000);
+      }).not.toThrow();
+
+      // 持仓量优雅截断为 0，而不是负数
+      expect(holding.totalQuantity).toBe(0);
+      // 已实现盈亏基于实际持有的 1.0 计算: (65000 - 60000) * 1.0 = 5000
+      expect(holding.realizedPnL).toBe(5000);
     });
   });
 });

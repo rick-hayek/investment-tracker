@@ -23,22 +23,26 @@ describe('SettingsRepository (用户偏好配置持久化测试)', () => {
     expect(settings.baseCurrency).toBe('USD');
     expect(settings.privacyMode).toBe(false);
     expect(settings.appSwitcherBlur).toBe(true);
+    expect(settings.language).toBe('zh');
   });
 
   it('成功更新并持久化部分配置项', async () => {
     const updated = await settingsRepo.updateSettings({
       baseCurrency: 'CNY',
       privacyMode: true,
+      language: 'en',
     });
 
     expect(updated.baseCurrency).toBe('CNY');
     expect(updated.privacyMode).toBe(true);
     expect(updated.appSwitcherBlur).toBe(true); // 保持原有默认值
+    expect(updated.language).toBe('en');
 
     // 重新从数据库读取确认持久化落盘
     const reloaded = await settingsRepo.getSettings();
     expect(reloaded.baseCurrency).toBe('CNY');
     expect(reloaded.privacyMode).toBe(true);
+    expect(reloaded.language).toBe('en');
   });
 
   it('多次连续更新能正确增量合并', async () => {

@@ -46,6 +46,25 @@ export const ChevronRightIcon: React.FC<IconProps> = ({
 );
 
 /**
+ * 极简三道杠菜单线条图标 (Menu / Hamburger)
+ */
+export const MenuIcon: React.FC<IconProps> = ({
+  size = 20,
+  color = '#F8FAFC',
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 6H20M4 12H20M4 18H20"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+/**
  * 极简编辑铅笔线条图标 (Edit)
  */
 export const EditPencilIcon: React.FC<IconProps> = ({
@@ -212,7 +231,7 @@ export const HomeIcon: React.FC<IconProps> = ({
 );
 
 /**
- * 极简六齿齿轮线条图标 (Settings Gear)
+ * 极简齿轮线条图标 (Settings Gear)
  */
 export const SettingsGearIcon: React.FC<IconProps> = ({
   size = 20,
@@ -222,7 +241,7 @@ export const SettingsGearIcon: React.FC<IconProps> = ({
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Circle cx="12" cy="12" r="3" stroke={color} strokeWidth={strokeWidth} />
     <Path
-      d="M19.4 15A1.65 1.65 0 0 0 19.73 16.82L20.1 17.45A2 2 0 1 1 16.63 19.45L16 18.82A1.65 1.65 0 0 0 14.18 18.5A1.65 1.65 0 0 0 13 20V21A2 2 0 1 1 9 21V20A1.65 1.65 0 0 0 7.82 18.5A1.65 1.65 0 0 0 6 18.82L5.37 19.45A2 2 0 1 1 1.9 17.45L2.27 16.82A1.65 1.65 0 0 0 2.6 15A1.65 1.65 0 0 0 1.28 13.82L0.65 13.45A2 2 0 1 1 2.65 9.98L3.28 10.61A1.65 1.65 0 0 0 5.1 10.28A1.65 1.65 0 0 0 6.28 8.82L6.65 8.19A2 2 0 1 1 10.12 6.19L9.75 6.82A1.65 1.65 0 0 0 11.22 8.5H12A1.65 1.65 0 0 0 13.45 6.82L13.08 6.19A2 2 0 1 1 16.55 8.19L16.18 8.82A1.65 1.65 0 0 0 17.36 10.28A1.65 1.65 0 0 0 19.18 10.61L19.81 9.98A2 2 0 1 1 21.81 13.45L21.18 13.82A1.65 1.65 0 0 0 19.4 15Z"
+      d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
@@ -492,3 +511,30 @@ export const SolLogo: React.FC<{ size?: number }> = ({ size = 32 }) => (
     />
   </Svg>
 );
+
+/**
+ * 极简地球/多语言矢量线条图标 (Globe)
+ */
+export const GlobeIcon: React.FC<IconProps> = ({
+  size = 20,
+  color = '#94A3B8',
+  strokeWidth = 1.8,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={strokeWidth} />
+    <Path
+      d="M3.6 9H20.4M3.6 15H20.4"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+    />
+    <Path
+      d="M12 3C14.5 5.5 16 8.5 16 12C16 15.5 14.5 18.5 12 21C9.5 18.5 8 15.5 8 12C8 8.5 9.5 5.5 12 3Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
