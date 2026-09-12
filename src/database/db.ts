@@ -1,4 +1,5 @@
 import { ALL_MIGRATIONS } from './schema';
+import { MemorySqliteAdapter } from './adapters/memorySqliteAdapter';
 
 /**
  * 跨端统一的 SQLite 执行接口
@@ -19,7 +20,7 @@ export function setDatabaseInstance(db: IDatabaseConnection) {
 
 export function getDatabaseInstance(): IDatabaseConnection {
   if (!activeDb) {
-    throw new Error('Database instance has not been initialized. Please call initDatabase() first.');
+    activeDb = new MemorySqliteAdapter();
   }
   return activeDb;
 }

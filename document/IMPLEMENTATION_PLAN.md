@@ -81,16 +81,16 @@ gantt
 ### Sprint 2: 行情适配器与交易录入模块 (Week 2)
 > **目标**：打通多交易所公共行情与代码建议，完成高质量的买卖记账表单。
 
-- [ ] **Task 2.1: 多平台行情适配器开发 (Exchange Adapters)**
+- [x] **Task 2.1: 多平台行情适配器开发 (Exchange Adapters)**
   - 封装统一接口 `IExchangeAdapter`。
   - 实现 `BinanceAdapter`（格式如 `BTCUSDT`，对接 Binance 24hr Ticker API）。
   - 实现 `OKXAdapter`（格式如 `BTC-USDT`，对接 OKX API v5）。
   - 实现 `CoinbaseAdapter`（格式如 `BTC-USD`）。
   - 实现 `CoinGeckoAdapter`（按小写名称查询，如 `bitcoin`）。
-- [ ] **Task 2.2: 容灾降级与缓存调度服务 (`ExchangeService`)**
+- [x] **Task 2.2: 容灾降级与缓存调度服务 (`ExchangeService`)**
   - 实现主平台请求失败/限流时，自动降级至 CoinGecko 公共端点兜底。
   - 基于 TanStack Query 实现 15 秒前台智能节流轮询与退后台自动休眠。
-- [ ] **Task 2.3: 添加买卖交易页面/Modal (`AddTransactionModal`)**
+- [x] **Task 2.3: 添加买卖交易页面/Modal (`AddTransactionModal`)**
   - 买入/卖出分段开关切换（绿色/红色主题色响应联动）。
   - 4 大平台快捷切换芯片（OKX、Binance、CoinGecko、Coinbase），选中时动态更新格式建议（如“💡 Binance 填 BTCUSDT 或 BTC”）。
   - 单价输入框支持“一键填充当前市价”。

@@ -199,6 +199,7 @@ export class PnLEngine {
       assetId: asset.id,
       symbol: asset.symbol,
       name: asset.name,
+      platform: asset.platform,
       totalQuantity: currentQty.toNumber(),
       averageCost: avgCost.toNumber(),
       totalCostBasis: totalCostBasis.toNumber(),

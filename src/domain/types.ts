@@ -56,6 +56,7 @@ export interface AssetHolding {
   assetId: string;
   symbol: string;
   name: string;
+  platform?: PlatformType; // 对应交易平台 (如 Binance, OKX)
   totalQuantity: number; // 当前持有总量
   averageCost: number; // 加权平均成本单价 (USD)
   totalCostBasis: number; // 当前持仓总成本 (averageCost * totalQuantity)

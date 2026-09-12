@@ -18,6 +18,7 @@ module.exports = {
   collectCoverageFrom: [
     'src/domain/**/*.{ts,tsx}',
     'src/database/**/*.{ts,tsx}',
+    'src/services/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
   ],
 };
