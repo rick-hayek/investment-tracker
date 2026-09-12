@@ -3,6 +3,7 @@ import {
   formatCurrencyValue,
   getCurrencySymbol,
   getNextCurrency,
+  maskValue,
   CURRENCY_CONFIGS,
 } from '../src/domain/currency';
 
@@ -39,4 +40,16 @@ describe('Currency Domain (多法币折算与格式化测试)', () => {
     expect(getNextCurrency('CNY')).toBe('EUR');
     expect(getNextCurrency('EUR')).toBe('USD');
   });
+
+  it('支持防偷窥隐私模式金额脱敏展示 (privacyMode)', () => {
+    expect(formatCurrencyValue(99999, 'USD', { privacyMode: true })).toBe('$••••••');
+    expect(formatCurrencyValue(99999, 'CNY', { privacyMode: true })).toBe('¥••••••');
+  });
+
+  it('maskValue 辅助函数脱敏行为正常', () => {
+    expect(maskValue(123.45, true)).toBe('••••••');
+    expect(maskValue(123.45, false)).toBe('123.45');
+    expect(maskValue('custom', true, '***')).toBe('***');
+  });
 });
+

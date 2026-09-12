@@ -25,6 +25,8 @@ export interface AppDrawerProps {
   onNavigateSettings?: () => void;
   currency: CurrencyType;
   onCurrencyChange: (next: CurrencyType) => void;
+  privacyMode?: boolean;
+  onTogglePrivacy?: () => void;
   biometricEnabled?: boolean;
 }
 
@@ -36,7 +38,9 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
   onNavigateSettings,
   currency,
   onCurrencyChange,
-  biometricEnabled = true,
+  privacyMode = false,
+  onTogglePrivacy,
+  biometricEnabled = false,
 }) => {
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -202,11 +206,23 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             </View>
           </TouchableOpacity>
 
+          {/* 防偷窥隐私模式快捷开关 */}
+          <TouchableOpacity
+            style={styles.prefRow}
+            onPress={onTogglePrivacy}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.prefLabel}>防偷窥隐私模式</Text>
+            <Text style={privacyMode ? styles.secActiveText : styles.secDisabledText}>
+              {privacyMode ? '● 已开启 🙈' : '未开启 👁️'}
+            </Text>
+          </TouchableOpacity>
+
           {/* 生物识别安全锁状态 */}
           <View style={styles.prefRow}>
             <Text style={styles.prefLabel}>Face ID / 指纹安全锁</Text>
-            <Text style={biometricEnabled ? styles.secActiveText : styles.secDisabledText}>
-              {biometricEnabled ? '● 已开启' : '未开启'}
+            <Text style={styles.secDisabledText}>
+              规划中
             </Text>
           </View>
 

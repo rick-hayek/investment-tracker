@@ -11,10 +11,12 @@ export interface TotalPortfolioCardProps {
   holdings: AssetHolding[];
   currency: CurrencyType;
   isPolling?: boolean;
+  privacyMode?: boolean;
   onPressBuy: () => void;
   onPressSell: () => void;
   onPressAnalysis: () => void;
   onPressCurrency?: () => void;
+  onTogglePrivacy?: () => void;
 }
 
 export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
@@ -22,10 +24,12 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
   holdings,
   currency,
   isPolling = false,
+  privacyMode = false,
   onPressBuy,
   onPressSell,
   onPressAnalysis,
   onPressCurrency,
+  onTogglePrivacy,
 }) => {
   const [pnlMode, setPnlMode] = useState<PnLDisplayMode>('CUMULATIVE');
 
@@ -99,21 +103,28 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
     <View style={styles.totalCard}>
       {/* 顶部标签与实时指示器 */}
       <View style={styles.cardHeaderRow}>
-        <TouchableOpacity onPress={onPressCurrency} style={styles.labelContainer}>
-          <Text style={styles.cardLabel}>总资产估值 ({currency})</Text>
-          <View style={styles.currencyBadge}>
-            <Text style={styles.currencyBadgeText}>{getCurrencySymbol(currency)}</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={styles.labelGroup}>
+          <TouchableOpacity onPress={onPressCurrency} style={styles.labelContainer}>
+            <Text style={styles.cardLabel}>总资产估值 ({currency})</Text>
+            <View style={styles.currencyBadge}>
+              <Text style={styles.currencyBadgeText}>{getCurrencySymbol(currency)}</Text>
+            </View>
+          </TouchableOpacity>
+          {onTogglePrivacy && (
+            <TouchableOpacity onPress={onTogglePrivacy} style={styles.eyeBtn} activeOpacity={0.7}>
+              <Text style={styles.eyeBtnText}>{privacyMode ? '🙈' : '👁️'}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {isPolling && <Text style={styles.liveIndicator}>● 实时行情</Text>}
       </View>
 
-      {/* 大字号总金额 (支持多法币折算) */}
+      {/* 大字号总金额 (支持多法币折算与隐私掩码) */}
       <Text style={styles.totalAmount}>
-        {formatCurrencyValue(summary.totalMarketValue, currency)}
+        {formatCurrencyValue(summary.totalMarketValue, currency, { privacyMode })}
       </Text>
 
-      {/* 盈亏胶囊指示器 (支持点击在累计与24h切换) */}
+      {/* 盈亏胶囊指示器 (支持点击在累计与24h切换与隐私掩码) */}
       <View style={styles.badgeContainer}>
         <TouchableOpacity
           style={[styles.pnlBadge, !isPositive && styles.pnlBadgeNegative]}
@@ -121,10 +132,16 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
           activeOpacity={0.7}
         >
           <Text style={[styles.pnlText, !isPositive && styles.pnlTextNegative]}>
-            {isPositive ? '▲ +' : '▼ -'}
-            {formatCurrencyValue(Math.abs(displayAmountUSD), currency)} (
-            {isPositive ? '+' : ''}
-            {displayPercent.toFixed(1)}%)
+            {privacyMode ? (
+              '•••••• (••%)'
+            ) : (
+              <>
+                {isPositive ? '▲ +' : '▼ -'}
+                {formatCurrencyValue(Math.abs(displayAmountUSD), currency)} (
+                {isPositive ? '+' : ''}
+                {displayPercent.toFixed(1)}%)
+              </>
+            )}
           </Text>
           <Text style={styles.modeTagText}>
             {isCumulative ? '累计未实现 ⇄' : '今日24H ⇄'}
@@ -178,10 +195,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
+  labelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   labelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  eyeBtn: {
+    padding: 2,
+  },
+  eyeBtnText: {
+    fontSize: 14,
   },
   cardLabel: {
     color: '#94A3B8',

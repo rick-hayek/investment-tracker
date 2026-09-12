@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^react-native$': '<rootDir>/__mocks__/react-native.js',
   },
   testMatch: ['**/__tests__/**/*.test.ts'],
   transform: {

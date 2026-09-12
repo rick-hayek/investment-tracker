@@ -88,6 +88,8 @@ export interface PortfolioSummary {
 export interface UserSettings {
   baseCurrency: CurrencyType;
   privacyMode: boolean; // 是否隐藏具体金额
-  biometricLock: boolean; // 是否启用生物识别
+  biometricLock?: boolean; // 是否启用生物识别 (暂缓)
+  appSwitcherBlur: boolean; // 切出多任务后台是否显示防截屏遮罩
   theme: 'dark' | 'light';
 }
+

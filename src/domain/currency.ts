@@ -29,6 +29,15 @@ export const CURRENCY_CONFIGS: Record<CurrencyType, CurrencyConfig> = {
 };
 
 /**
+ * 动态更新指定法币对 USD 的汇率
+ */
+export function updateCurrencyRate(currency: CurrencyType, rateToUSD: number): void {
+  if (CURRENCY_CONFIGS[currency] && rateToUSD > 0) {
+    CURRENCY_CONFIGS[currency].rateToUSD = rateToUSD;
+  }
+}
+
+/**
  * 将以 USD 计价的金额按汇率折算为目标法币
  */
 export function convertCurrency(amountUSD: number, targetCurrency: CurrencyType): number {
@@ -53,7 +62,7 @@ export function getNextCurrency(current: CurrencyType): CurrencyType {
 }
 
 /**
- * 格式化法币金额展示字符串
+ * 格式化法币金额展示字符串，支持隐私脱敏模式
  */
 export function formatCurrencyValue(
   amountUSD: number,
@@ -62,12 +71,17 @@ export function formatCurrencyValue(
     decimals?: number;
     showSign?: boolean;
     includeSymbol?: boolean;
+    privacyMode?: boolean;
   } = {}
 ): string {
-  const { decimals = 2, showSign = false, includeSymbol = true } = options;
-  const converted = convertCurrency(amountUSD, currency);
+  const { decimals = 2, showSign = false, includeSymbol = true, privacyMode = false } = options;
   const symbol = includeSymbol ? getCurrencySymbol(currency) : '';
 
+  if (privacyMode) {
+    return `${symbol}••••••`;
+  }
+
+  const converted = convertCurrency(amountUSD, currency);
   const isPositive = converted > 0;
   const isNegative = converted < 0;
   const absValue = Math.abs(converted);
@@ -87,4 +101,14 @@ export function formatCurrencyValue(
   }
 
   return `${symbol}${formattedNum}`;
+}
+
+/**
+ * 通用脱敏掩码转换器
+ */
+export function maskValue(value: string | number, isPrivate: boolean, placeholder = '••••••'): string {
+  if (isPrivate) {
+    return placeholder;
+  }
+  return String(value);
 }

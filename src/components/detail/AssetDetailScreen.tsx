@@ -20,6 +20,7 @@ export interface AssetDetailScreenProps {
   visible: boolean;
   holding: AssetHolding | null;
   currency: CurrencyType;
+  privacyMode?: boolean;
   onClose: () => void;
   onOpenAddTransaction: (type: TransactionType, symbol: string, platform: PlatformType) => void;
   txRepo?: TransactionRepository;
@@ -30,6 +31,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
   visible,
   holding,
   currency,
+  privacyMode = false,
   onClose,
   onOpenAddTransaction,
   txRepo,
@@ -95,7 +97,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
         {/* 页面核心滚动区域 */}
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* 1. 顶部持仓价值总览卡片 */}
-          <AssetDetailHeader holding={holding} currency={currency} />
+          <AssetDetailHeader holding={holding} currency={currency} privacyMode={privacyMode} />
 
           {/* 2. 交互式价格走势图表 (含分时切换与长按十字光标) */}
           <InteractiveChart

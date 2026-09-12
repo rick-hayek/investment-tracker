@@ -15,6 +15,7 @@ export interface AssetListProps {
   holdings: AssetHolding[];
   currency: CurrencyType;
   refreshing: boolean;
+  privacyMode?: boolean;
   onRefresh: () => void;
   onPressAsset: (holding: AssetHolding) => void;
   onPressAdd: () => void;
@@ -25,6 +26,7 @@ export const AssetList: React.FC<AssetListProps> = ({
   holdings,
   currency,
   refreshing,
+  privacyMode = false,
   onRefresh,
   onPressAsset,
   onPressAdd,
@@ -62,22 +64,28 @@ export const AssetList: React.FC<AssetListProps> = ({
               )}
             </View>
             <Text style={styles.assetSub}>
-              {item.totalQuantity} {item.symbol} • {formatCurrencyValue(item.currentPrice, currency)}
+              {privacyMode ? '••••' : item.totalQuantity} {item.symbol} • {formatCurrencyValue(item.currentPrice, currency)}
             </Text>
           </View>
         </View>
 
         <View style={styles.assetRight}>
           <Text style={styles.assetValue}>
-            {formatCurrencyValue(item.marketValue, currency)}
+            {formatCurrencyValue(item.marketValue, currency, { privacyMode })}
           </Text>
           <Text style={isHoldingPositive ? styles.pnlGreen : styles.pnlRed}>
-            {isHoldingPositive ? '+' : ''}
-            {item.unrealizedPnLPercent.toFixed(1)}% ({isHoldingPositive ? '+$' : '-$'}
-            {Math.abs(item.unrealizedPnL).toLocaleString('en-US', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })})
+            {privacyMode ? (
+              '•••••• (••%)'
+            ) : (
+              <>
+                {isHoldingPositive ? '+' : ''}
+                {item.unrealizedPnLPercent.toFixed(1)}% ({isHoldingPositive ? '+$' : '-$'}
+                {Math.abs(item.unrealizedPnL).toLocaleString('en-US', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                })})
+              </>
+            )}
           </Text>
         </View>
       </TouchableOpacity>

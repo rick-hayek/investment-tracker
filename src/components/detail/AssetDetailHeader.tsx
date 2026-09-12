@@ -6,11 +6,13 @@ import { formatCurrencyValue } from '../../domain/currency';
 export interface AssetDetailHeaderProps {
   holding: AssetHolding;
   currency: CurrencyType;
+  privacyMode?: boolean;
 }
 
 export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
   holding,
   currency,
+  privacyMode = false,
 }) => {
   const isPositive = holding.unrealizedPnL >= 0;
   const is24hPositive = holding.change24hPercent >= 0;
@@ -29,20 +31,26 @@ export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
 
       {/* 大字号市值金额 */}
       <Text style={styles.amount}>
-        {formatCurrencyValue(holding.marketValue, currency)}
+        {formatCurrencyValue(holding.marketValue, currency, { privacyMode })}
       </Text>
 
       {/* 持币量与盈亏胶囊 */}
       <View style={styles.badgeRow}>
         <Text style={styles.quantityText}>
-          持币: {holding.totalQuantity} {holding.symbol}
+          持币: {privacyMode ? '••••' : holding.totalQuantity} {holding.symbol}
         </Text>
         <View style={[styles.pnlBadge, !isPositive && styles.pnlBadgeNegative]}>
           <Text style={[styles.pnlText, !isPositive && styles.pnlTextNegative]}>
-            {isPositive ? '▲ +' : '▼ -'}
-            {formatCurrencyValue(Math.abs(holding.unrealizedPnL), currency)} (
-            {isPositive ? '+' : ''}
-            {holding.unrealizedPnLPercent.toFixed(1)}%)
+            {privacyMode ? (
+              '•••••• (••%)'
+            ) : (
+              <>
+                {isPositive ? '▲ +' : '▼ -'}
+                {formatCurrencyValue(Math.abs(holding.unrealizedPnL), currency)} (
+                {isPositive ? '+' : ''}
+                {holding.unrealizedPnLPercent.toFixed(1)}%)
+              </>
+            )}
           </Text>
         </View>
       </View>
@@ -52,14 +60,14 @@ export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
         <View style={styles.metricItem}>
           <Text style={styles.metricLabel}>持仓成本均价</Text>
           <Text style={styles.metricValue}>
-            {formatCurrencyValue(holding.averageCost, currency)}
+            {formatCurrencyValue(holding.averageCost, currency, { privacyMode })}
           </Text>
         </View>
 
         <View style={styles.metricItem}>
           <Text style={styles.metricLabel}>当前持仓总成本</Text>
           <Text style={styles.metricValue}>
-            {formatCurrencyValue(holding.totalCostBasis, currency)}
+            {formatCurrencyValue(holding.totalCostBasis, currency, { privacyMode })}
           </Text>
         </View>
 

@@ -7,19 +7,25 @@ import {
   StatusBar,
   TouchableOpacity,
   PanResponder,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
-import { Asset, Transaction, AssetHolding, TransactionType, PlatformType, CurrencyType } from './src/domain/types';
+import { Asset, Transaction, AssetHolding, TransactionType, PlatformType, CurrencyType, UserSettings } from './src/domain/types';
 import { PnLEngine } from './src/domain/calculations/pnlEngine';
 import { getNextCurrency } from './src/domain/currency';
 import { AssetRepository } from './src/database/repositories/assetRepository';
 import { TransactionRepository } from './src/database/repositories/transactionRepository';
+import { SettingsRepository, DEFAULT_USER_SETTINGS } from './src/database/repositories/settingsRepository';
 import { AddTransactionModal } from './src/components/transactions';
 import { TotalPortfolioCard } from './src/components/portfolio/TotalPortfolioCard';
 import { AssetList } from './src/components/portfolio/AssetList';
 import { PortfolioAllocationModal } from './src/components/portfolio/PortfolioAllocationModal';
 import { AppDrawer } from './src/components/drawer/AppDrawer';
 import { AssetDetailScreen } from './src/components/detail';
+import { SettingsScreen } from './src/components/settings';
+import { PrivacyShield } from './src/components/common/PrivacyShield';
 import { defaultExchangeService } from './src/services/exchangeService';
+import { defaultForexService } from './src/services/forexService';
 import { useMarketPoll } from './src/services/useMarketPoll';
 
 const INITIAL_DEMO_ASSETS: Asset[] = [
@@ -64,6 +70,12 @@ const INITIAL_DEMO_TXS: Transaction[] = [
 export default function App() {
   const assetRepo = useMemo(() => new AssetRepository(), []);
   const txRepo = useMemo(() => new TransactionRepository(), []);
+  const settingsRepo = useMemo(() => new SettingsRepository(), []);
+
+  // 用户偏好设置与后台遮罩状态
+  const [userSettings, setUserSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [isBackgroundBlocked, setIsBackgroundBlocked] = useState(false);
 
   // 导航与抽屉状态
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -91,6 +103,42 @@ export default function App() {
     sol: { price: 145.2, change24h: -1.2 },
   });
   const [refreshing, setRefreshing] = useState(false);
+
+  // 初始化用户偏好配置与后台状态监听
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await settingsRepo.getSettings();
+        setUserSettings(saved);
+        setBaseCurrency(saved.baseCurrency);
+      } catch (err) {
+        console.warn('Failed to load user settings:', err);
+      }
+    })();
+
+    // 静默拉取最新实时汇率
+    defaultForexService.fetchLatestRates().catch(() => {});
+
+    // 监听应用切出到多任务卡片后台
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      setIsBackgroundBlocked(nextState !== 'active');
+    });
+
+    return () => sub.remove();
+  }, [settingsRepo]);
+
+  // 更新并持久化用户配置
+  const handleUpdateSettings = async (partial: Partial<UserSettings>) => {
+    try {
+      const updated = await settingsRepo.updateSettings(partial);
+      setUserSettings(updated);
+      if (partial.baseCurrency) {
+        setBaseCurrency(partial.baseCurrency);
+      }
+    } catch (err) {
+      console.warn('Failed to update settings:', err);
+    }
+  };
 
   const reloadData = useCallback(async () => {
     try {
@@ -235,7 +283,13 @@ export default function App() {
 
   // 点击法币轮转
   const handleCycleCurrency = () => {
-    setBaseCurrency((prev) => getNextCurrency(prev));
+    const next = getNextCurrency(baseCurrency);
+    handleUpdateSettings({ baseCurrency: next });
+  };
+
+  const handleDataResetOrImported = async () => {
+    await reloadData();
+    await refreshPrices();
   };
 
   return (
@@ -266,6 +320,7 @@ export default function App() {
         holdings={holdings}
         currency={baseCurrency}
         refreshing={refreshing}
+        privacyMode={userSettings.privacyMode}
         onRefresh={onManualRefresh}
         onPressAsset={(holding) => {
           setSelectedHolding(holding);
@@ -280,10 +335,12 @@ export default function App() {
               holdings={holdings}
               currency={baseCurrency}
               isPolling={isPolling}
+              privacyMode={userSettings.privacyMode}
               onPressBuy={() => openAddModal('BUY')}
               onPressSell={() => openAddModal('SELL')}
               onPressAnalysis={() => setAllocationModalVisible(true)}
               onPressCurrency={handleCycleCurrency}
+              onTogglePrivacy={() => handleUpdateSettings({ privacyMode: !userSettings.privacyMode })}
             />
 
             {/* Section Title */}
@@ -324,6 +381,7 @@ export default function App() {
         visible={detailVisible}
         holding={activeDetailHolding}
         currency={baseCurrency}
+        privacyMode={userSettings.privacyMode}
         onClose={() => setDetailVisible(false)}
         onOpenAddTransaction={(type, symbol, platform) => {
           openAddModal(type, symbol, platform);
@@ -332,14 +390,37 @@ export default function App() {
         exchangeService={defaultExchangeService}
       />
 
+      {/* 用户设置与偏好中心页面 */}
+      <SettingsScreen
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        settings={userSettings}
+        onUpdateSettings={handleUpdateSettings}
+        assets={assets}
+        transactions={transactions}
+        onDataResetOrImported={handleDataResetOrImported}
+        settingsRepo={settingsRepo}
+        assetRepo={assetRepo}
+        txRepo={txRepo}
+      />
+
       {/* 左侧滑动边栏抽屉 */}
       <AppDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         activeScreen="home"
         currency={baseCurrency}
-        onCurrencyChange={(next) => setBaseCurrency(next)}
+        onCurrencyChange={(next) => handleUpdateSettings({ baseCurrency: next })}
+        privacyMode={userSettings.privacyMode}
+        onTogglePrivacy={() => handleUpdateSettings({ privacyMode: !userSettings.privacyMode })}
+        onNavigateSettings={() => {
+          setIsDrawerOpen(false);
+          setSettingsVisible(true);
+        }}
       />
+
+      {/* 切出系统后台时的防截屏隐私高斯遮罩 */}
+      <PrivacyShield visible={isBackgroundBlocked && userSettings.appSwitcherBlur} />
     </SafeAreaView>
   );
 }
