@@ -4,6 +4,14 @@ import { PortfolioSummary, CurrencyType, AssetHolding } from '../../domain/types
 import { formatCurrencyValue, getCurrencySymbol } from '../../domain/currency';
 import { Sparkline } from '../charts/Sparkline';
 
+import {
+  EyeIcon,
+  EyeOffIcon,
+  DepositPlusIcon,
+  WithdrawArrowIcon,
+  AnalyticsChartIcon,
+} from '../common/Icons';
+
 export type PnLDisplayMode = 'CUMULATIVE' | 'DAILY_24H';
 
 export interface TotalPortfolioCardProps {
@@ -38,7 +46,6 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
     let total24hChangeAmountUSD = 0;
     for (const h of holdings) {
       if (h.marketValue > 0 && h.change24hPercent) {
-        // 今日盈亏约等于: 市值 * (涨跌幅 / 100)
         total24hChangeAmountUSD += h.marketValue * (h.change24hPercent / 100);
       }
     }
@@ -53,7 +60,6 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
     };
   }, [holdings, summary.totalMarketValue]);
 
-  // 根据当前选择的展示模式决定显示的盈亏数值
   const isCumulative = pnlMode === 'CUMULATIVE';
   const displayAmountUSD = isCumulative
     ? summary.totalUnrealizedPnL
@@ -68,7 +74,6 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
   const sparklineData = useMemo(() => {
     const base = summary.totalMarketValue || 100000;
     const isUp = summary.totalUnrealizedPnL >= 0;
-    // 构建 8 个连续走势点
     if (isUp) {
       return [
         base * 0.88,
@@ -94,37 +99,40 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
     }
   }, [summary.totalMarketValue, summary.totalUnrealizedPnL]);
 
-  // 点击指示器切换展示模式
   const togglePnlMode = () => {
     setPnlMode((prev) => (prev === 'CUMULATIVE' ? 'DAILY_24H' : 'CUMULATIVE'));
   };
 
   return (
     <View style={styles.totalCard}>
-      {/* 顶部标签与实时指示器 */}
+      {/* 顶部标签与实时指示器 (匹配 01_home_screen.jpg) */}
       <View style={styles.cardHeaderRow}>
         <View style={styles.labelGroup}>
-          <TouchableOpacity onPress={onPressCurrency} style={styles.labelContainer}>
-            <Text style={styles.cardLabel}>总资产估值 ({currency})</Text>
+          <TouchableOpacity onPress={onPressCurrency} style={styles.labelContainer} activeOpacity={0.7}>
+            <Text style={styles.cardLabel}>Total Assets ({currency})</Text>
             <View style={styles.currencyBadge}>
               <Text style={styles.currencyBadgeText}>{getCurrencySymbol(currency)}</Text>
             </View>
           </TouchableOpacity>
           {onTogglePrivacy && (
             <TouchableOpacity onPress={onTogglePrivacy} style={styles.eyeBtn} activeOpacity={0.7}>
-              <Text style={styles.eyeBtnText}>{privacyMode ? '🙈' : '👁️'}</Text>
+              {privacyMode ? (
+                <EyeOffIcon size={16} color="#64748B" />
+              ) : (
+                <EyeIcon size={16} color="#94A3B8" />
+              )}
             </TouchableOpacity>
           )}
         </View>
-        {isPolling && <Text style={styles.liveIndicator}>● 实时行情</Text>}
+        {isPolling && <Text style={styles.liveIndicator}>● Live</Text>}
       </View>
 
-      {/* 大字号总金额 (支持多法币折算与隐私掩码) */}
+      {/* 大字号总金额 */}
       <Text style={styles.totalAmount}>
         {formatCurrencyValue(summary.totalMarketValue, currency, { privacyMode })}
       </Text>
 
-      {/* 盈亏胶囊指示器 (支持点击在累计与24h切换与隐私掩码) */}
+      {/* 盈亏胶囊指示器 */}
       <View style={styles.badgeContainer}>
         <TouchableOpacity
           style={[styles.pnlBadge, !isPositive && styles.pnlBadgeNegative]}
@@ -136,7 +144,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
               '•••••• (••%)'
             ) : (
               <>
-                {isPositive ? '▲ +' : '▼ -'}
+                {isPositive ? '+' : '-'}
                 {formatCurrencyValue(Math.abs(displayAmountUSD), currency)} (
                 {isPositive ? '+' : ''}
                 {displayPercent.toFixed(1)}%)
@@ -144,7 +152,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
             )}
           </Text>
           <Text style={styles.modeTagText}>
-            {isCumulative ? '累计未实现 ⇄' : '今日24H ⇄'}
+            {isCumulative ? '累计 ⇄' : '24H ⇄'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -153,22 +161,25 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
       <View style={styles.sparklineContainer}>
         <Sparkline
           data={sparklineData}
-          width={300}
-          height={54}
+          width={310}
+          height={68}
           isPositive={summary.totalUnrealizedPnL >= 0}
         />
       </View>
 
-      {/* 快捷操作按钮组 */}
+      {/* 快捷操作胶囊 (方案 A: 买入 / 卖出 / 资产分析，匹配设计稿线条图标) */}
       <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onPressBuy}>
-          <Text style={styles.actionBtnText}>➕ 买入记录</Text>
+        <TouchableOpacity style={styles.actionBtn} onPress={onPressBuy} activeOpacity={0.7}>
+          <DepositPlusIcon size={16} color="#38BDF8" strokeWidth={2} />
+          <Text style={styles.actionBtnText}>买入 (Buy)</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onPressSell}>
-          <Text style={styles.actionBtnText}>➖ 卖出记账</Text>
+        <TouchableOpacity style={styles.actionBtn} onPress={onPressSell} activeOpacity={0.7}>
+          <WithdrawArrowIcon size={16} color="#F8FAFC" strokeWidth={2} />
+          <Text style={styles.actionBtnText}>卖出 (Sell)</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onPressAnalysis}>
-          <Text style={styles.actionBtnText}>⚙️ 统计分析</Text>
+        <TouchableOpacity style={styles.actionBtn} onPress={onPressAnalysis} activeOpacity={0.7}>
+          <AnalyticsChartIcon size={16} color="#A7F3D0" strokeWidth={2} />
+          <Text style={styles.actionBtnText}>资产分析</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -283,15 +294,19 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#212836',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 10,
-    alignItems: 'center',
+    paddingHorizontal: 6,
   },
   actionBtnText: {
-    color: '#E2E8F0',
+    color: '#F8FAFC',
     fontSize: 12,
     fontWeight: '600',
   },

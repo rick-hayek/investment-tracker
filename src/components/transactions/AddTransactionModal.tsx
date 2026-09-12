@@ -18,6 +18,8 @@ import { TransactionRepository } from '../../database/repositories/transactionRe
 import { ExchangeService, defaultExchangeService } from '../../services/exchangeService';
 import { extractBaseSymbol, resolveCoinGeckoId, KNOWN_ASSETS } from '../../services/symbolMapper';
 
+import { CloseCrossIcon, SearchIcon } from '../common/Icons';
+
 interface AddTransactionModalProps {
   visible: boolean;
   initialType?: TransactionType;
@@ -252,10 +254,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         <View style={styles.modalContainer}>
           {/* Header */}
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>✕</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+              <CloseCrossIcon size={16} color="#94A3B8" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>记一笔交易</Text>
+            <Text style={styles.modalTitle}>Record Transaction</Text>
             <View style={styles.headerSpacer} />
           </View>
 
@@ -273,7 +275,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 onPress={() => setTxType('BUY')}
               >
                 <Text style={[styles.toggleBtnText, isBuy && styles.toggleBtnTextActive]}>
-                  买入 (Buy)
+                  Buy
                 </Text>
               </TouchableOpacity>
 
@@ -285,7 +287,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 onPress={() => setTxType('SELL')}
               >
                 <Text style={[styles.toggleBtnText, !isBuy && styles.toggleBtnTextActive]}>
-                  卖出 (Sell)
+                  Sell
                 </Text>
               </TouchableOpacity>
             </View>
@@ -293,13 +295,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             {/* 错误提示条 */}
             {errorMessage && (
               <View style={styles.errorBanner}>
-                <Text style={styles.errorBannerText}>⚠️ {errorMessage}</Text>
+                <Text style={styles.errorBannerText}>{errorMessage}</Text>
               </View>
             )}
 
             {/* 平台选择器 Chips */}
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>选择交易平台 (Platform)</Text>
+              <Text style={styles.formLabel}>Select Platform</Text>
               <View style={styles.platformRow}>
                 {PLATFORMS.map((item) => {
                   const isSelected = platform === item.key;
@@ -329,10 +331,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             {/* 代币符号与格式建议 */}
             <View style={styles.formGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>代币符号 / 代码</Text>
+                <Text style={styles.formLabel}>Token Symbol</Text>
                 {!isBuy && (
                   <Text style={styles.holdingInfoText}>
-                    当前可用: {holdingQty}
+                    Available: {holdingQty}
                   </Text>
                 )}
               </View>
@@ -340,7 +342,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 style={styles.inputBox}
                 value={symbol}
                 onChangeText={(val) => setSymbol(val.toUpperCase())}
-                placeholder="例如 BTC 或 BTCUSDT"
+                placeholder="BTC / ETH / SOL"
                 placeholderTextColor="#64748B"
                 autoCapitalize="characters"
               />
@@ -350,7 +352,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             {/* 成交单价输入与一键市价填充 */}
             <View style={styles.formGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>成交单价 (Price / USD)</Text>
+                <Text style={styles.formLabel}>Buy Price / Cost (USD)</Text>
                 <TouchableOpacity
                   style={styles.quickPriceBtn}
                   onPress={handleFetchCurrentPrice}
@@ -359,7 +361,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   {isFetchingPrice ? (
                     <ActivityIndicator size="small" color="#38BDF8" />
                   ) : (
-                    <Text style={styles.quickPriceBtnText}>⚡ 填充当前市价</Text>
+                    <Text style={styles.quickPriceBtnText}>Use Market Price</Text>
                   )}
                 </TouchableOpacity>
               </View>

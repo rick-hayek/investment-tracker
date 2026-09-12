@@ -11,6 +11,8 @@ import { AssetHolding, CurrencyType } from '../../domain/types';
 import { formatCurrencyValue } from '../../domain/currency';
 import { KNOWN_ASSETS } from '../../services/symbolMapper';
 
+import { BtcLogo, EthLogo, SolLogo } from '../common/Icons';
+
 export interface AssetListProps {
   holdings: AssetHolding[];
   currency: CurrencyType;
@@ -32,9 +34,27 @@ export const AssetList: React.FC<AssetListProps> = ({
   onPressAdd,
   ListHeaderComponent,
 }) => {
+  const renderLogo = (symbol: string) => {
+    switch (symbol.toUpperCase()) {
+      case 'BTC':
+        return <BtcLogo size={36} />;
+      case 'ETH':
+        return <EthLogo size={36} />;
+      case 'SOL':
+        return <SolLogo size={36} />;
+      default: {
+        const meta = KNOWN_ASSETS[symbol];
+        const iconBg = meta ? meta.color : '#3B82F6';
+        return (
+          <View style={[styles.coinIcon, { backgroundColor: iconBg }]}>
+            <Text style={styles.coinIconText}>{symbol.slice(0, 1)}</Text>
+          </View>
+        );
+      }
+    }
+  };
+
   const renderItem = ({ item }: { item: AssetHolding }) => {
-    const meta = KNOWN_ASSETS[item.symbol];
-    const iconBg = meta ? meta.color : '#3B82F6';
     const isHoldingPositive = item.unrealizedPnL >= 0;
 
     return (
@@ -44,17 +64,8 @@ export const AssetList: React.FC<AssetListProps> = ({
         activeOpacity={0.7}
       >
         <View style={styles.assetLeft}>
-          <View style={[styles.coinIcon, { backgroundColor: iconBg }]}>
-            <Text
-              style={[
-                styles.coinIconText,
-                (item.symbol === 'SOL' || item.symbol === 'BNB') && { color: '#090D16' },
-              ]}
-            >
-              {item.symbol.slice(0, 1)}
-            </Text>
-          </View>
-          <View>
+          {renderLogo(item.symbol)}
+          <View style={styles.nameContainer}>
             <View style={styles.assetTitleRow}>
               <Text style={styles.assetName}>{item.name}</Text>
               {item.platform && (
@@ -64,29 +75,30 @@ export const AssetList: React.FC<AssetListProps> = ({
               )}
             </View>
             <Text style={styles.assetSub}>
-              {privacyMode ? '••••' : item.totalQuantity} {item.symbol} • {formatCurrencyValue(item.currentPrice, currency)}
+              {item.symbol} • {privacyMode ? '••••' : item.totalQuantity}
             </Text>
           </View>
         </View>
 
         <View style={styles.assetRight}>
-          <Text style={styles.assetValue}>
-            {formatCurrencyValue(item.marketValue, currency, { privacyMode })}
-          </Text>
-          <Text style={isHoldingPositive ? styles.pnlGreen : styles.pnlRed}>
-            {privacyMode ? (
-              '•••••• (••%)'
-            ) : (
-              <>
-                {isHoldingPositive ? '+' : ''}
-                {item.unrealizedPnLPercent.toFixed(1)}% ({isHoldingPositive ? '+$' : '-$'}
-                {Math.abs(item.unrealizedPnL).toLocaleString('en-US', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 0,
-                })})
-              </>
-            )}
-          </Text>
+          <View style={styles.rightTopRow}>
+            <Text style={styles.assetValue}>
+              {formatCurrencyValue(item.marketValue, currency, { privacyMode })}
+            </Text>
+            <Text style={styles.pnlLabel}>P&L</Text>
+          </View>
+          <View style={styles.rightBottomRow}>
+            <Text style={styles.assetSubRight}>
+              {formatCurrencyValue(item.currentPrice, currency)}
+            </Text>
+            <Text style={isHoldingPositive ? styles.pnlGreen : styles.pnlRed}>
+              {privacyMode ? (
+                '••••••'
+              ) : (
+                `${isHoldingPositive ? '+' : ''}${item.unrealizedPnLPercent.toFixed(1)}%`
+              )}
+            </Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -94,7 +106,7 @@ export const AssetList: React.FC<AssetListProps> = ({
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>暂无持仓资产记录，点击上方「＋」开始记账！</Text>
+      <Text style={styles.emptyText}>暂无持仓资产记录，点击上方按钮开始记账</Text>
     </View>
   );
 
@@ -195,8 +207,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  nameContainer: {
+    marginLeft: 2,
+  },
   assetRight: {
     alignItems: 'flex-end',
+  },
+  rightTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rightBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 3,
+  },
+  pnlLabel: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  assetSubRight: {
+    color: '#94A3B8',
+    fontSize: 12,
   },
   assetValue: {
     color: '#FFFFFF',
@@ -207,12 +242,10 @@ const styles = StyleSheet.create({
     color: '#10B981',
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 2,
   },
   pnlRed: {
     color: '#EF4444',
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 2,
   },
 });

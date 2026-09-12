@@ -13,6 +13,12 @@ import {
 } from 'react-native';
 import { CurrencyType } from '../../domain/types';
 import { CURRENCY_CONFIGS, getNextCurrency } from '../../domain/currency';
+import {
+  HomeIcon,
+  SettingsGearIcon,
+  UserAvatarIcon,
+  CloseCrossIcon,
+} from '../common/Icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.78, 300);
@@ -66,13 +72,13 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: -DRAWER_WIDTH,
-          duration: 250,
+          duration: 240,
           easing: Easing.bezier(0.4, 0, 0.2, 1),
           useNativeDriver: true,
         }),
         Animated.timing(overlayAnim, {
           toValue: 0,
-          duration: 250,
+          duration: 240,
           easing: Easing.bezier(0.4, 0, 0.2, 1),
           useNativeDriver: true,
         }),
@@ -80,32 +86,40 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
     }
   }, [isOpen, slideAnim, overlayAnim]);
 
-  // 左滑收起手势
+  // 手势拖拽侦听器
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return gestureState.dx < -15 && Math.abs(gestureState.dy) < 50;
+        return Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dx < 0) {
+          slideAnim.setValue(Math.max(-DRAWER_WIDTH, gestureState.dx));
+        }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < -50) {
+        if (gestureState.dx < -DRAWER_WIDTH * 0.35 || gestureState.vx < -0.5) {
           onClose();
+        } else {
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 180,
+            useNativeDriver: true,
+          }).start();
         }
       },
     })
   ).current;
 
-  if (!isOpen && (slideAnim as any)._value === -DRAWER_WIDTH) {
-    return null;
-  }
-
   const handleCycleCurrency = () => {
-    const next = getNextCurrency(currency);
-    onCurrencyChange(next);
+    onCurrencyChange(getNextCurrency(currency));
   };
 
+  if (!isOpen) return null;
+
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={isOpen ? 'auto' : 'none'}>
-      {/* 半透明遮罩 */}
+    <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+      {/* 灰色半透明遮罩背景 */}
       <TouchableWithoutFeedback onPress={onClose}>
         <Animated.View
           style={[
@@ -116,6 +130,21 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
           ]}
         />
       </TouchableWithoutFeedback>
+
+      {/* 浮动圆形关闭按钮 (100% 还原 04_sidebar_drawer.jpg) */}
+      <Animated.View
+        style={[
+          styles.closeBtnWrapper,
+          {
+            left: DRAWER_WIDTH + 14,
+            opacity: overlayAnim,
+          },
+        ]}
+      >
+        <TouchableOpacity style={styles.floatingCloseBtn} onPress={onClose} activeOpacity={0.7}>
+          <CloseCrossIcon size={16} color="#F8FAFC" />
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* 侧边栏主体 */}
       <Animated.View
@@ -132,17 +161,18 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
           {/* 顶部个人名片 */}
           <View style={styles.profileCard}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>👨‍💻</Text>
+              <UserAvatarIcon size={24} color="#94A3B8" />
             </View>
             <View style={styles.userInfo}>
               <Text style={styles.userName}>Rick H.</Text>
+              <Text style={styles.userEmail}>rick@example.com</Text>
               <View style={styles.proBadge}>
                 <Text style={styles.proBadgeText}>Crypto Track Pro</Text>
               </View>
             </View>
           </View>
 
-          {/* 导航条目 */}
+          {/* 导航条目 (主页项具有设计图同款发光边框) */}
           <View style={styles.menuList}>
             <TouchableOpacity
               style={[
@@ -155,14 +185,14 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.menuIcon}>🏠</Text>
+              <HomeIcon size={20} color={activeScreen === 'home' ? '#38BDF8' : '#94A3B8'} />
               <Text
                 style={[
                   styles.menuTitle,
                   activeScreen === 'home' && styles.menuTitleActive,
                 ]}
               >
-                资产看板 (Portfolio Home)
+                Portfolio Home
               </Text>
             </TouchableOpacity>
 
@@ -177,14 +207,14 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.menuIcon}>⚙️</Text>
+              <SettingsGearIcon size={20} color={activeScreen === 'settings' ? '#38BDF8' : '#94A3B8'} />
               <Text
                 style={[
                   styles.menuTitle,
                   activeScreen === 'settings' && styles.menuTitleActive,
                 ]}
               >
-                设置与个人 (Settings & Profile)
+                Settings & Profile
               </Text>
             </TouchableOpacity>
           </View>
@@ -198,12 +228,10 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             onPress={handleCycleCurrency}
             activeOpacity={0.7}
           >
-            <Text style={styles.prefLabel}>基准法币 (Currency)</Text>
-            <View style={styles.currencyPill}>
-              <Text style={styles.currencyPillText}>
-                {CURRENCY_CONFIGS[currency]?.name || currency} ⇄
-              </Text>
-            </View>
+            <Text style={styles.prefLabel}>Base Currency:</Text>
+            <Text style={styles.currencyValueText}>
+              {CURRENCY_CONFIGS[currency]?.name || currency} ⇄
+            </Text>
           </TouchableOpacity>
 
           {/* 防偷窥隐私模式快捷开关 */}
@@ -212,23 +240,20 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             onPress={onTogglePrivacy}
             activeOpacity={0.7}
           >
-            <Text style={styles.prefLabel}>防偷窥隐私模式</Text>
+            <Text style={styles.prefLabel}>Privacy Mode:</Text>
             <Text style={privacyMode ? styles.secActiveText : styles.secDisabledText}>
-              {privacyMode ? '● 已开启 🙈' : '未开启 👁️'}
+              {privacyMode ? 'ON' : 'OFF'}
             </Text>
           </TouchableOpacity>
 
           {/* 生物识别安全锁状态 */}
           <View style={styles.prefRow}>
-            <Text style={styles.prefLabel}>Face ID / 指纹安全锁</Text>
-            <Text style={styles.secDisabledText}>
-              规划中
-            </Text>
+            <Text style={styles.prefLabel}>Biometric Lock (Face ID):</Text>
+            <Text style={styles.secDisabledText}>Planned</Text>
           </View>
 
           {/* 版本号 */}
           <View style={styles.versionRow}>
-            <Text style={styles.versionText}>Investment Tracker</Text>
             <Text style={styles.versionText}>v1.0.0</Text>
           </View>
         </View>
@@ -306,6 +331,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  userEmail: {
+    color: '#8E9BAE',
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  closeBtnWrapper: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    zIndex: 999,
+  },
+  floatingCloseBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   menuList: {
     gap: 8,
   },
@@ -316,14 +366,13 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 14,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   menuItemActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  menuIcon: {
-    fontSize: 18,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
   },
   menuTitle: {
     color: '#94A3B8',
@@ -331,8 +380,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   menuTitleActive: {
-    color: '#60A5FA',
+    color: '#38BDF8',
     fontWeight: '700',
+  },
+  currencyValueText: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '600',
   },
   footerSection: {
     borderTopWidth: 1,

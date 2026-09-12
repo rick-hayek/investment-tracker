@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -13,12 +13,24 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { CurrencyType, UserSettings, Asset, Transaction } from '../../domain/types';
-import { CURRENCY_CONFIGS } from '../../domain/currency';
+import { CURRENCY_CONFIGS, getNextCurrency } from '../../domain/currency';
 import { defaultForexService, ForexRateInfo } from '../../services/forexService';
 import { DataExportService } from '../../services/dataExportService';
 import { SettingsRepository } from '../../database/repositories/settingsRepository';
 import { AssetRepository } from '../../database/repositories/assetRepository';
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  EditPencilIcon,
+  BaseCurrencyIcon,
+  LockIcon,
+  MoonIcon,
+  ExportCsvIcon,
+  CloudBackupIcon,
+  ExchangeMatrixIcon,
+  UserAvatarIcon,
+} from '../common/Icons';
 
 export interface SettingsScreenProps {
   visible: boolean;
@@ -48,45 +60,27 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [forexInfo, setForexInfo] = useState<ForexRateInfo>(defaultForexService.getRateInfo());
   const [isRefreshingForex, setIsRefreshingForex] = useState(false);
 
-  // JSON 导入弹窗状态
+  // Backup & Import modal
+  const [backupModalVisible, setBackupModalVisible] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importJsonText, setImportJsonText] = useState('');
   const [importLoading, setImportLoading] = useState(false);
 
-  // 挂载时刷新外汇汇率状态
   useEffect(() => {
     if (visible) {
       setForexInfo(defaultForexService.getRateInfo());
     }
   }, [visible]);
 
-  // 手动刷新实时汇率
-  const handleRefreshForex = async () => {
-    setIsRefreshingForex(true);
-    try {
-      const updated = await defaultForexService.fetchLatestRates();
-      setForexInfo(updated);
-      Alert.alert('汇率更新成功', `最新汇率: 1 USD = ${updated.rates.CNY.toFixed(4)} CNY / ${updated.rates.EUR.toFixed(4)} EUR\n数据源: ${updated.source}`);
-    } catch {
-      Alert.alert('更新提示', '获取最新汇率失败，已保持当前缓存汇率。');
-    } finally {
-      setIsRefreshingForex(false);
-    }
+  // 轮转切换基准法币
+  const handleCycleCurrency = () => {
+    const next = getNextCurrency(settings.baseCurrency);
+    onUpdateSettings({ baseCurrency: next });
   };
 
-  // 切换法币
-  const handleSelectCurrency = (curr: CurrencyType) => {
-    onUpdateSettings({ baseCurrency: curr });
-  };
-
-  // 切换防偷窥隐私模式
+  // 切换隐私模式
   const handleTogglePrivacy = (val: boolean) => {
     onUpdateSettings({ privacyMode: val });
-  };
-
-  // 切换切出后台高斯模糊遮罩
-  const handleToggleBlur = (val: boolean) => {
-    onUpdateSettings({ appSwitcherBlur: val });
   };
 
   // 导出 CSV 交易明细
@@ -96,7 +90,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       return;
     }
     const csvString = DataExportService.exportTransactionsToCSV(transactions, assets);
-    await DataExportService.shareContent('投资交易记录明细.csv', csvString);
+    await DataExportService.shareContent('Investment_Transactions.csv', csvString);
   };
 
   // 导出 JSON 全量备份
@@ -105,7 +99,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     await DataExportService.shareContent('InvestmentTracker_Backup.json', jsonString);
   };
 
-  // 校验并执行 JSON 恢复
+  // 确认恢复导入 JSON
   const handleConfirmImport = async () => {
     if (!importJsonText.trim()) {
       Alert.alert('错误', '请输入或粘贴 JSON 备份内容');
@@ -129,7 +123,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           onPress: async () => {
             setImportLoading(true);
             try {
-              // 清空旧数据
               const existingAssets = await assetRepo.findAll();
               for (const a of existingAssets) {
                 await assetRepo.delete(a.id);
@@ -139,7 +132,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 await txRepo.delete(t.id);
               }
 
-              // 逐条插入新数据
               for (const a of validation.data!.assets) {
                 await assetRepo.insert(a);
               }
@@ -147,7 +139,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 await txRepo.insert(t);
               }
 
-              // 恢复偏好设置（若存在）
               if (validation.data!.settings) {
                 await settingsRepo.updateSettings(validation.data!.settings);
                 onUpdateSettings(validation.data!.settings);
@@ -168,230 +159,249 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     );
   };
 
-  // 恢复出厂演示数据
-  const handleResetDemoData = () => {
-    Alert.alert(
-      '恢复演示数据？',
-      '此操作将清空当前自定义交易，并重置为系统的初始演示资产与流水。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '确认重置',
-          style: 'destructive',
-          onPress: async () => {
-            const allAssets = await assetRepo.findAll();
-            for (const a of allAssets) {
-              await assetRepo.delete(a.id);
-            }
-            const allTxs = await txRepo.findAll();
-            for (const t of allTxs) {
-              await txRepo.delete(t.id);
-            }
-            await onDataResetOrImported();
-            Alert.alert('完成', '已重置为初始演示数据。');
-          },
-        },
-      ]
-    );
+  // 刷新汇率
+  const handleRefreshForex = async () => {
+    setIsRefreshingForex(true);
+    try {
+      const updated = await defaultForexService.fetchLatestRates();
+      setForexInfo(updated);
+      Alert.alert('汇率更新成功', `1 USD = ${updated.rates.CNY.toFixed(2)} CNY / ${updated.rates.EUR.toFixed(2)} EUR`);
+    } catch {
+      Alert.alert('更新提示', '获取汇率失败，已保持当前缓存。');
+    } finally {
+      setIsRefreshingForex(false);
+    }
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <SafeAreaView style={styles.safeContainer}>
-        {/* 顶部导航 */}
+        {/* 顶部导航栏 (100% 还原 05_settings_profile.jpg) */}
         <View style={styles.navBar}>
-          <Text style={styles.navTitle}>设置与偏好</Text>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={styles.closeBtnText}>✕</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={onClose} activeOpacity={0.7}>
+            <ChevronLeftIcon size={22} color="#F8FAFC" />
+          </TouchableOpacity>
+          <Text style={styles.navTitle}>Settings & Profile</Text>
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => Alert.alert('Profile', '个人资料编辑功能开发中')}
+            activeOpacity={0.7}
+          >
+            <EditPencilIcon size={14} color="#F8FAFC" />
+            <Text style={styles.editBtnText}>Edit</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-          {/* Group 1: 偏好设置 */}
-          <Text style={styles.sectionHeader}>偏好设置 (PREFERENCES)</Text>
-          <View style={styles.card}>
-            {/* 基准法币选择 */}
-            <View style={styles.row}>
-              <View style={styles.rowInfo}>
-                <Text style={styles.rowLabel}>基准结算货币</Text>
-                <Text style={styles.rowDesc}>全局资产看板与均价折算主单位</Text>
-              </View>
-              <View style={styles.currencyButtonGroup}>
-                {(['USD', 'CNY', 'EUR'] as CurrencyType[]).map((curr) => {
-                  const isSelected = settings.baseCurrency === curr;
-                  return (
-                    <TouchableOpacity
-                      key={curr}
-                      style={[styles.currencyBtn, isSelected && styles.currencyBtnActive]}
-                      onPress={() => handleSelectCurrency(curr)}
-                    >
-                      <Text style={[styles.currencyBtnText, isSelected && styles.currencyBtnTextActive]}>
-                        {curr}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+          {/* 用户资料主卡片 (100% 还原设计图暗黑蓝光玻璃质感) */}
+          <View style={styles.profileCard}>
+            <View style={styles.avatarWrapper}>
+              <UserAvatarIcon size={32} color="#94A3B8" />
             </View>
-
-            <View style={styles.divider} />
-
-            {/* 防偷窥隐私模式 */}
-            <View style={styles.row}>
-              <View style={styles.rowInfo}>
-                <Text style={styles.rowLabel}>防偷窥隐私模式</Text>
-                <Text style={styles.rowDesc}>将主页估值与收益脱敏为 ••••••</Text>
+            <View style={styles.profileInfo}>
+              <View style={styles.nameRow}>
+                <Text style={styles.userName}>Rick H.</Text>
+                <View style={styles.proBadge}>
+                  <Text style={styles.proBadgeText}>Pro Member</Text>
+                </View>
               </View>
-              <Switch
-                value={settings.privacyMode}
-                onValueChange={handleTogglePrivacy}
-                trackColor={{ false: '#334155', true: '#10B981' }}
-                thumbColor="#F8FAFC"
-              />
-            </View>
-
-            <View style={styles.divider} />
-
-            {/* 切出后台防截屏 */}
-            <View style={styles.row}>
-              <View style={styles.rowInfo}>
-                <Text style={styles.rowLabel}>多任务防截屏保护</Text>
-                <Text style={styles.rowDesc}>切换至系统后台任务卡片时施加遮罩</Text>
-              </View>
-              <Switch
-                value={settings.appSwitcherBlur}
-                onValueChange={handleToggleBlur}
-                trackColor={{ false: '#334155', true: '#3B82F6' }}
-                thumbColor="#F8FAFC"
-              />
+              <Text style={styles.userEmail}>rickh.invests@email.com</Text>
             </View>
           </View>
 
-          {/* Group 2: 实时法币汇率引擎 */}
-          <Text style={styles.sectionHeader}>汇率引擎 (FOREX ENGINE)</Text>
-          <View style={styles.card}>
-            <View style={styles.forexRatesRow}>
-              <View style={styles.forexRateItem}>
-                <Text style={styles.forexCurrencyTag}>USD / CNY</Text>
-                <Text style={styles.forexRateValue}>¥{forexInfo.rates.CNY.toFixed(2)}</Text>
+          {/* Section 1: Preferences */}
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          <View style={styles.cardGroup}>
+            {/* Base Currency */}
+            <TouchableOpacity style={styles.rowItem} onPress={handleCycleCurrency} activeOpacity={0.7}>
+              <View style={styles.rowLeft}>
+                <View style={styles.iconContainer}>
+                  <BaseCurrencyIcon size={20} color="#94A3B8" />
+                </View>
+                <Text style={styles.rowTitle}>Base Currency</Text>
               </View>
-              <View style={styles.forexDividerVertical} />
-              <View style={styles.forexRateItem}>
-                <Text style={styles.forexCurrencyTag}>USD / EUR</Text>
-                <Text style={styles.forexRateValue}>€{forexInfo.rates.EUR.toFixed(2)}</Text>
+              <View style={styles.rowRight}>
+                <Text style={styles.rowRightValue}>
+                  {settings.baseCurrency} ({CURRENCY_CONFIGS[settings.baseCurrency]?.symbol})
+                </Text>
+                <ChevronRightIcon size={16} color="#64748B" />
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* Privacy Mode */}
+            <View style={styles.rowItem}>
+              <View style={styles.rowLeft}>
+                <View style={styles.iconContainer}>
+                  <LockIcon size={20} color="#94A3B8" />
+                </View>
+                <View>
+                  <Text style={styles.rowTitle}>Privacy Mode</Text>
+                  <Text style={styles.rowSubtitle}>Hide Balances in Public</Text>
+                </View>
+              </View>
+              <View style={styles.switchWrapper}>
+                <Switch
+                  value={settings.privacyMode}
+                  onValueChange={handleTogglePrivacy}
+                  trackColor={{ false: '#334155', true: '#10B981' }}
+                  thumbColor="#F8FAFC"
+                />
               </View>
             </View>
 
-            <View style={styles.forexFooterRow}>
-              <Text style={styles.forexSourceText}>
-                数据源: {forexInfo.source} • {new Date(forexInfo.lastUpdated).toLocaleTimeString()}
-              </Text>
+            <View style={styles.divider} />
+
+            {/* Theme */}
+            <TouchableOpacity
+              style={styles.rowItem}
+              onPress={() => Alert.alert('Theme', '当前为原生极简深黑模式 (Dark Mode)')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.rowLeft}>
+                <View style={styles.iconContainer}>
+                  <MoonIcon size={20} color="#94A3B8" />
+                </View>
+                <Text style={styles.rowTitle}>Theme</Text>
+              </View>
+              <View style={styles.rowRight}>
+                <Text style={styles.rowRightValue}>Dark</Text>
+                <ChevronRightIcon size={16} color="#64748B" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Section 2: Exchanges & Data */}
+          <Text style={styles.sectionTitle}>Exchanges & Data</Text>
+          <View style={styles.cardGroup}>
+            {/* Connected Exchanges */}
+            <TouchableOpacity
+              style={styles.rowItem}
+              onPress={() => Alert.alert('Connected Exchanges', '已连接市场数据通道: OKX, Binance, Coinbase, CoinGecko')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.rowLeft}>
+                <View style={styles.iconContainer}>
+                  <ExchangeMatrixIcon size={20} />
+                </View>
+                <Text style={styles.rowTitle}>Connected Exchanges</Text>
+              </View>
+              <View style={styles.rowRight}>
+                <Text style={styles.rowRightValue}>OKX, Binance</Text>
+                <ChevronRightIcon size={16} color="#64748B" />
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* Export Transactions (.CSV) */}
+            <TouchableOpacity style={styles.rowItem} onPress={handleExportCSV} activeOpacity={0.7}>
+              <View style={styles.rowLeft}>
+                <View style={styles.iconContainer}>
+                  <ExportCsvIcon size={20} color="#94A3B8" />
+                </View>
+                <Text style={styles.rowTitle}>Export Transactions (.CSV)</Text>
+              </View>
+              <View style={styles.rowRight}>
+                <ChevronRightIcon size={16} color="#64748B" />
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* Cloud Backup / Backup & Restore */}
+            <TouchableOpacity
+              style={styles.rowItem}
+              onPress={() => setBackupModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.rowLeft}>
+                <View style={styles.iconContainer}>
+                  <CloudBackupIcon size={20} color="#94A3B8" />
+                </View>
+                <Text style={styles.rowTitle}>Cloud Backup</Text>
+              </View>
+              <View style={styles.rowRight}>
+                <ChevronRightIcon size={16} color="#64748B" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Section 3: Forex Rates Info & Refresh */}
+          <Text style={styles.sectionTitle}>Forex Rates</Text>
+          <View style={styles.cardGroup}>
+            <View style={styles.forexRow}>
+              <View style={styles.forexItem}>
+                <Text style={styles.forexTag}>USD / CNY</Text>
+                <Text style={styles.forexValue}>¥{forexInfo.rates.CNY.toFixed(2)}</Text>
+              </View>
+              <View style={styles.forexDivider} />
+              <View style={styles.forexItem}>
+                <Text style={styles.forexTag}>USD / EUR</Text>
+                <Text style={styles.forexValue}>€{forexInfo.rates.EUR.toFixed(2)}</Text>
+              </View>
+              <View style={styles.forexDivider} />
               <TouchableOpacity
-                style={styles.refreshForexBtn}
+                style={styles.refreshBtn}
                 onPress={handleRefreshForex}
                 disabled={isRefreshingForex}
               >
                 {isRefreshingForex ? (
-                  <ActivityIndicator size="small" color="#3B82F6" />
+                  <ActivityIndicator size="small" color="#38BDF8" />
                 ) : (
-                  <Text style={styles.refreshForexText}>🔄 刷新汇率</Text>
+                  <Text style={styles.refreshBtnText}>Update</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Group 3: 数据可携性与备份 */}
-          <Text style={styles.sectionHeader}>数据管理与可携性 (DATA & BACKUP)</Text>
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.actionRow} onPress={handleExportCSV} activeOpacity={0.7}>
-              <Text style={styles.actionIcon}>📄</Text>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>导出交易记录 (CSV)</Text>
-                <Text style={styles.actionDesc}>导出标准 CSV 表格，适配 Excel / Numbers</Text>
-              </View>
-              <Text style={styles.actionArrow}>›</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.actionRow} onPress={handleExportJSON} activeOpacity={0.7}>
-              <Text style={styles.actionIcon}>📦</Text>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>导出全量备份 (JSON)</Text>
-                <Text style={styles.actionDesc}>备份所有资产档案与历史流水，便于迁移</Text>
-              </View>
-              <Text style={styles.actionArrow}>›</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => setImportModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.actionIcon}>📥</Text>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>导入并恢复备份 (JSON)</Text>
-                <Text style={styles.actionDesc}>粘贴或载入备份文件并执行安全校验</Text>
-              </View>
-              <Text style={styles.actionArrow}>›</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.actionRow} onPress={handleResetDemoData} activeOpacity={0.7}>
-              <Text style={styles.actionIcon}>⚠️</Text>
-              <View style={styles.actionInfo}>
-                <Text style={[styles.actionTitle, styles.dangerText]}>重置为演示数据</Text>
-                <Text style={styles.actionDesc}>清空并重置为 BTC、ETH、SOL 初始种子流水</Text>
-              </View>
-              <Text style={styles.actionArrow}>›</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Group 4: 安全锁规划说明 */}
-          <Text style={styles.sectionHeader}>安全锁 (SECURITY)</Text>
-          <View style={styles.card}>
-            <View style={styles.row}>
-              <View style={styles.rowInfo}>
-                <View style={styles.titleWithBadge}>
-                  <Text style={styles.rowLabel}>Face ID / 生物识别锁</Text>
-                  <View style={styles.plannedBadge}>
-                    <Text style={styles.plannedBadgeText}>规划中</Text>
-                  </View>
-                </View>
-                <Text style={styles.rowDesc}>进入 App 时强制进行生物识别身份验证</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Group 5: 关于与版本 */}
-          <Text style={styles.sectionHeader}>关于系统 (ABOUT)</Text>
-          <View style={styles.card}>
-            <View style={styles.aboutRow}>
-              <Text style={styles.aboutLabel}>应用名称</Text>
-              <Text style={styles.aboutValue}>Investment Tracker</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.aboutRow}>
-              <Text style={styles.aboutLabel}>客户端版本</Text>
-              <Text style={styles.aboutValue}>v1.0.0 (Expo SDK 52)</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.aboutRow}>
-              <Text style={styles.aboutLabel}>核心架构</Text>
-              <Text style={styles.aboutValue}>React Native • TypeScript • SQLite</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.aboutRow}>
-              <Text style={styles.aboutLabel}>本地数据库</Text>
-              <Text style={[styles.aboutValue, styles.textGreen]}>● 存储就绪 (SQLite)</Text>
-            </View>
-          </View>
-
           <View style={styles.bottomSpacer} />
         </ScrollView>
+
+        {/* 备份与还原快捷操作弹窗 */}
+        <Modal
+          visible={backupModalVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setBackupModalVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalDialog}>
+              <Text style={styles.dialogTitle}>Cloud Backup & Sync</Text>
+              <Text style={styles.dialogDesc}>
+                支持将持仓与交易全量导出为加密 JSON 备份包，或从文件恢复迁移。
+              </Text>
+
+              <TouchableOpacity
+                style={styles.actionBtnPrimary}
+                onPress={async () => {
+                  setBackupModalVisible(false);
+                  await handleExportJSON();
+                }}
+              >
+                <Text style={styles.actionBtnText}>导出全量 JSON 备份</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionBtnSecondary}
+                onPress={() => {
+                  setBackupModalVisible(false);
+                  setImportModalVisible(true);
+                }}
+              >
+                <Text style={styles.actionBtnSecondaryText}>导入并还原备份</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.dialogCancelBtn}
+                onPress={() => setBackupModalVisible(false)}
+              >
+                <Text style={styles.dialogCancelText}>取消</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* JSON 导入弹窗 */}
         <Modal
@@ -402,7 +412,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         >
           <View style={styles.modalBackdrop}>
             <View style={styles.modalDialog}>
-              <Text style={styles.dialogTitle}>导入 JSON 备份</Text>
+              <Text style={styles.dialogTitle}>导入恢复 JSON 备份</Text>
               <Text style={styles.dialogDesc}>
                 请将之前导出的 JSON 备份文本粘贴到下方文本框中：
               </Text>
@@ -412,7 +422,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 placeholder='{"version": "1.0", "assets": [...], ...}'
                 placeholderTextColor="#64748B"
                 multiline
-                numberOfLines={8}
+                numberOfLines={7}
                 value={importJsonText}
                 onChangeText={setImportJsonText}
                 autoCapitalize="none"
@@ -421,7 +431,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
               <View style={styles.dialogButtonsRow}>
                 <TouchableOpacity
-                  style={styles.dialogCancelBtn}
+                  style={styles.dialogCancelBtnSmall}
                   onPress={() => {
                     setImportModalVisible(false);
                     setImportJsonText('');
@@ -457,213 +467,198 @@ const styles = StyleSheet.create({
     backgroundColor: '#090D16',
   },
   navBar: {
-    height: 56,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 16,
   },
-  navTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
-  },
-  closeBtn: {
+  backBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeBtnText: {
-    fontSize: 16,
-    color: '#94A3B8',
+  navTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    letterSpacing: -0.3,
+  },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  editBtnText: {
+    fontSize: 13,
     fontWeight: '600',
+    color: '#F8FAFC',
   },
   content: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 18,
+    paddingTop: 12,
   },
-  sectionHeader: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-    marginTop: 20,
-    marginBottom: 8,
-    marginLeft: 4,
-    letterSpacing: 0.8,
-  },
-  card: {
-    backgroundColor: '#131B2E',
-    borderRadius: 16,
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#151D2F',
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 16,
+    marginBottom: 24,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  row: {
-    flexDirection: 'row',
+  avatarWrapper: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#202B42',
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
   },
-  rowInfo: {
+  profileInfo: {
     flex: 1,
-    marginRight: 12,
   },
-  rowLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#F8FAFC',
-    marginBottom: 3,
-  },
-  rowDesc: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    marginVertical: 4,
-  },
-  currencyButtonGroup: {
-    flexDirection: 'row',
-    backgroundColor: '#1E293B',
-    borderRadius: 8,
-    padding: 3,
-  },
-  currencyBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  currencyBtnActive: {
-    backgroundColor: '#3B82F6',
-  },
-  currencyBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  currencyBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  forexRatesRow: {
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 8,
-  },
-  forexRateItem: {
-    alignItems: 'center',
-  },
-  forexCurrencyTag: {
-    fontSize: 12,
-    color: '#64748B',
+    gap: 8,
     marginBottom: 4,
   },
-  forexRateValue: {
+  userName: {
     fontSize: 18,
     fontWeight: '700',
     color: '#F8FAFC',
   },
-  forexDividerVertical: {
-    width: 1,
-    height: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  proBadge: {
+    backgroundColor: 'rgba(59, 130, 246, 0.22)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
-  forexFooterRow: {
+  proBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#60A5FA',
+  },
+  userEmail: {
+    fontSize: 13,
+    color: '#94A3B8',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F8FAFC',
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  cardGroup: {
+    backgroundColor: '#131B2D',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginBottom: 24,
+  },
+  rowItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-    paddingTop: 10,
-    marginTop: 6,
+    paddingVertical: 14,
   },
-  forexSourceText: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  refreshForexBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-  },
-  refreshForexText: {
-    fontSize: 12,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  actionRow: {
+  rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-  },
-  actionIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  actionInfo: {
+    gap: 12,
     flex: 1,
   },
-  actionTitle: {
+  iconContainer: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#F8FAFC',
-    marginBottom: 3,
   },
-  actionDesc: {
+  rowSubtitle: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#8E9BAE',
+    marginTop: 2,
   },
-  actionArrow: {
-    fontSize: 20,
-    color: '#64748B',
-    marginLeft: 8,
-  },
-  dangerText: {
-    color: '#EF4444',
-  },
-  titleWithBadge: {
+  rowRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
-  plannedBadge: {
-    backgroundColor: 'rgba(100, 116, 139, 0.25)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 8,
-  },
-  plannedBadgeText: {
-    fontSize: 10,
+  rowRightValue: {
+    fontSize: 14,
     color: '#94A3B8',
-    fontWeight: '600',
+    fontWeight: '500',
   },
-  aboutRow: {
+  switchWrapper: {
+    transform: [{ scale: 0.85 }],
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  forexRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
-  aboutLabel: {
-    fontSize: 14,
-    color: '#94A3B8',
+  forexItem: {
+    alignItems: 'center',
+    flex: 1,
   },
-  aboutValue: {
-    fontSize: 14,
-    fontWeight: '600',
+  forexTag: {
+    fontSize: 11,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  forexValue: {
+    fontSize: 16,
+    fontWeight: '700',
     color: '#F8FAFC',
   },
-  textGreen: {
-    color: '#10B981',
+  forexDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  refreshBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+  },
+  refreshBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#38BDF8',
   },
   bottomSpacer: {
     height: 40,
@@ -677,23 +672,62 @@ const styles = StyleSheet.create({
   },
   modalDialog: {
     width: '100%',
-    backgroundColor: '#131B2E',
-    borderRadius: 20,
+    backgroundColor: '#131B2D',
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 20,
+    padding: 22,
   },
   dialogTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#F8FAFC',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   dialogDesc: {
     fontSize: 13,
     color: '#94A3B8',
-    marginBottom: 14,
+    marginBottom: 18,
     lineHeight: 18,
+  },
+  actionBtnPrimary: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  actionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  actionBtnSecondary: {
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  actionBtnSecondaryText: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dialogCancelBtn: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  dialogCancelBtnSmall: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+  },
+  dialogCancelText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
   },
   dialogInput: {
     backgroundColor: '#090D16',
@@ -704,7 +738,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 12,
     fontFamily: 'monospace',
-    height: 160,
+    height: 140,
     textAlignVertical: 'top',
     marginBottom: 16,
   },
@@ -712,17 +746,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
-  },
-  dialogCancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#1E293B',
-  },
-  dialogCancelText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
   },
   dialogConfirmBtn: {
     paddingHorizontal: 18,

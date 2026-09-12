@@ -27,6 +27,7 @@ import { PrivacyShield } from './src/components/common/PrivacyShield';
 import { defaultExchangeService } from './src/services/exchangeService';
 import { defaultForexService } from './src/services/forexService';
 import { useMarketPoll } from './src/services/useMarketPoll';
+import { UserAvatarIcon, BellIcon } from './src/components/common/Icons';
 
 const INITIAL_DEMO_ASSETS: Asset[] = [
   { id: 'btc_binance', symbol: 'BTC', name: 'Bitcoin', platform: 'Binance', createdAt: 1700000000000 },
@@ -296,22 +297,22 @@ export default function App() {
     <SafeAreaView style={styles.container} {...edgeSwipeResponder.panHandlers}>
       <StatusBar barStyle="light-content" backgroundColor="#090D16" />
 
-      {/* Navigation Bar Header */}
+      {/* Navigation Bar Header (100% 匹配 01_home_screen.jpg) */}
       <View style={styles.navBar}>
         <TouchableOpacity
-          style={styles.iconButton}
+          style={styles.avatarButton}
           onPress={() => setIsDrawerOpen(true)}
           activeOpacity={0.7}
         >
-          <Text style={styles.hamburgerText}>☰</Text>
+          <UserAvatarIcon size={20} color="#94A3B8" />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Investment Tracker</Text>
+        <Text style={styles.navTitle}>Krypton</Text>
         <TouchableOpacity
           style={styles.iconButton}
           onPress={() => openAddModal('BUY')}
           activeOpacity={0.7}
         >
-          <Text style={styles.navIconText}>＋</Text>
+          <BellIcon size={20} color="#F8FAFC" />
         </TouchableOpacity>
       </View>
 
@@ -343,11 +344,11 @@ export default function App() {
               onTogglePrivacy={() => handleUpdateSettings({ privacyMode: !userSettings.privacyMode })}
             />
 
-            {/* Section Title */}
+            {/* Section Title (100% 匹配 01_home_screen.jpg) */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>持仓投资品 (Holdings)</Text>
-              <TouchableOpacity onPress={() => openAddModal('BUY')}>
-                <Text style={styles.addLink}>+ 添加</Text>
+              <Text style={styles.sectionTitle}>Assets</Text>
+              <TouchableOpacity onPress={() => openAddModal('BUY')} activeOpacity={0.7}>
+                <Text style={styles.addLink}>+ Add</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -438,6 +439,16 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 14,
   },
+  avatarButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#1E283C',
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   iconButton: {
     width: 40,
     height: 40,
@@ -448,20 +459,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  hamburgerText: {
-    color: '#F8FAFC',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
   navTitle: {
     color: '#F8FAFC',
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: -0.3,
-  },
-  navIconText: {
-    color: '#F8FAFC',
-    fontSize: 18,
   },
   sectionHeader: {
     flexDirection: 'row',

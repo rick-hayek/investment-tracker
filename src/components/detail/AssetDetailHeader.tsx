@@ -21,7 +21,7 @@ export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
     <View style={styles.card}>
       {/* 顶部标签与平台徽标 */}
       <View style={styles.headerRow}>
-        <Text style={styles.cardLabel}>当前持仓总价值</Text>
+        <Text style={styles.cardLabel}>Current Holding Value</Text>
         {holding.platform && (
           <View style={styles.platformBadge}>
             <Text style={styles.platformBadgeText}>{holding.platform}</Text>
@@ -37,7 +37,7 @@ export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
       {/* 持币量与盈亏胶囊 */}
       <View style={styles.badgeRow}>
         <Text style={styles.quantityText}>
-          持币: {privacyMode ? '••••' : holding.totalQuantity} {holding.symbol}
+          {holding.symbol} {privacyMode ? '••••' : holding.totalQuantity} • ({is24hPositive ? '+' : ''}{holding.change24hPercent.toFixed(1)}% 24h)
         </Text>
         <View style={[styles.pnlBadge, !isPositive && styles.pnlBadgeNegative]}>
           <Text style={[styles.pnlText, !isPositive && styles.pnlTextNegative]}>
@@ -45,7 +45,7 @@ export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
               '•••••• (••%)'
             ) : (
               <>
-                {isPositive ? '▲ +' : '▼ -'}
+                {isPositive ? '+' : '-'}
                 {formatCurrencyValue(Math.abs(holding.unrealizedPnL), currency)} (
                 {isPositive ? '+' : ''}
                 {holding.unrealizedPnLPercent.toFixed(1)}%)

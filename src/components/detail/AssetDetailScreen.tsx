@@ -15,6 +15,12 @@ import { ExchangeService, defaultExchangeService } from '../../services/exchange
 import { AssetDetailHeader } from './AssetDetailHeader';
 import { InteractiveChart } from '../charts/InteractiveChart';
 import { TransactionHistoryList } from './TransactionHistoryList';
+import {
+  ChevronLeftIcon,
+  StarIcon,
+  DepositPlusIcon,
+  WithdrawArrowIcon,
+} from '../common/Icons';
 
 export interface AssetDetailScreenProps {
   visible: boolean;
@@ -46,8 +52,8 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
     try {
       const list = await txRepo.findByAssetId(holding.assetId);
       setTransactions(list);
-    } catch {
-      setTransactions([]);
+    } catch (err) {
+      console.warn('Failed to load asset detail txs:', err);
     }
   }, [holding, txRepo]);
 
@@ -59,17 +65,17 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
 
   if (!holding) return null;
 
-  const currentPlatform = holding.platform || 'Binance';
+  const currentPlatform: PlatformType = holding.platform || 'Binance';
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#090D16" />
 
-        {/* 顶部导航栏 */}
+        {/* 顶部导航栏 (匹配 03_asset_detail.jpg) */}
         <View style={styles.navBar}>
           <TouchableOpacity onPress={onClose} style={styles.iconBtn} activeOpacity={0.7}>
-            <Text style={styles.backArrowText}>←</Text>
+            <ChevronLeftIcon size={20} color="#F8FAFC" />
           </TouchableOpacity>
 
           <View style={styles.titleCenter}>
@@ -88,9 +94,11 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
             style={styles.iconBtn}
             activeOpacity={0.7}
           >
-            <Text style={[styles.starIcon, isFavorite && styles.starIconActive]}>
-              {isFavorite ? '★' : '☆'}
-            </Text>
+            <StarIcon
+              size={18}
+              color={isFavorite ? '#FBBF24' : '#94A3B8'}
+              filled={isFavorite}
+            />
           </TouchableOpacity>
         </View>
 
@@ -126,7 +134,8 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
             onPress={() => onOpenAddTransaction('BUY', holding.symbol, currentPlatform)}
             activeOpacity={0.8}
           >
-            <Text style={styles.bottomBtnText}>➕ 买入此币</Text>
+            <DepositPlusIcon size={18} color="#FFFFFF" />
+            <Text style={styles.bottomBtnText}>买入此币</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -134,7 +143,8 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
             onPress={() => onOpenAddTransaction('SELL', holding.symbol, currentPlatform)}
             activeOpacity={0.8}
           >
-            <Text style={styles.bottomBtnText}>➖ 卖出记账</Text>
+            <WithdrawArrowIcon size={18} color="#FFFFFF" />
+            <Text style={styles.bottomBtnText}>卖出记账</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
