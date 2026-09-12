@@ -1,22 +1,25 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   SafeAreaView,
   StatusBar,
-  ScrollView,
   TouchableOpacity,
-  RefreshControl,
+  PanResponder,
 } from 'react-native';
-import { Asset, Transaction, AssetHolding, TransactionType, PlatformType } from './src/domain/types';
+import { Asset, Transaction, AssetHolding, TransactionType, PlatformType, CurrencyType } from './src/domain/types';
 import { PnLEngine } from './src/domain/calculations/pnlEngine';
+import { getNextCurrency } from './src/domain/currency';
 import { AssetRepository } from './src/database/repositories/assetRepository';
 import { TransactionRepository } from './src/database/repositories/transactionRepository';
 import { AddTransactionModal } from './src/components/transactions';
+import { TotalPortfolioCard } from './src/components/portfolio/TotalPortfolioCard';
+import { AssetList } from './src/components/portfolio/AssetList';
+import { PortfolioAllocationModal } from './src/components/portfolio/PortfolioAllocationModal';
+import { AppDrawer } from './src/components/drawer/AppDrawer';
 import { defaultExchangeService } from './src/services/exchangeService';
 import { useMarketPoll } from './src/services/useMarketPoll';
-import { KNOWN_ASSETS } from './src/services/symbolMapper';
 
 const INITIAL_DEMO_ASSETS: Asset[] = [
   { id: 'btc_binance', symbol: 'BTC', name: 'Bitcoin', platform: 'Binance', createdAt: 1700000000000 },
@@ -61,11 +64,20 @@ export default function App() {
   const assetRepo = useMemo(() => new AssetRepository(), []);
   const txRepo = useMemo(() => new TransactionRepository(), []);
 
+  // 导航与抽屉状态
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [baseCurrency, setBaseCurrency] = useState<CurrencyType>('USD');
+
+  // 买卖记账弹窗状态
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState<TransactionType>('BUY');
   const [modalSymbol, setModalSymbol] = useState<string>('BTC');
   const [modalPlatform, setModalPlatform] = useState<PlatformType>('Binance');
 
+  // 资产配比统计弹窗
+  const [allocationModalVisible, setAllocationModalVisible] = useState(false);
+
+  // 数据库实体数据
   const [assets, setAssets] = useState<Asset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [marketPrices, setMarketPrices] = useState<Record<string, { price: number; change24h: number }>>({
@@ -86,7 +98,7 @@ export default function App() {
     }
   }, [assetRepo, txRepo]);
 
-  // 初始化种子数据或升级旧格式数据
+  // 初始化种子数据
   const initSeedData = useCallback(async () => {
     try {
       const existingAssets = await assetRepo.findAll();
@@ -98,7 +110,7 @@ export default function App() {
           await txRepo.insert(t);
         }
       } else {
-        // 数据迁移：若存在无平台后缀的旧 assetId，平滑升级为 symbol_platform 格式
+        // 数据迁移：若存在无平台后缀的旧 assetId，平滑升级为 symbol_platform
         for (const a of existingAssets) {
           if (!a.id.includes('_')) {
             const newId = `${a.symbol.toLowerCase()}_${a.platform.toLowerCase()}`;
@@ -196,143 +208,83 @@ export default function App() {
     await refreshPrices();
   };
 
-  const isPositive = summary.totalUnrealizedPnL >= 0;
+  // 屏幕左边缘右滑手势侦听器 (Edge Swipe)
+  const edgeSwipeResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // 当从屏幕最左侧 40px 内向右划过 25px 时触发
+        return evt.nativeEvent.pageX < 40 && gestureState.dx > 25 && Math.abs(gestureState.dy) < 40;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 30) {
+          setIsDrawerOpen(true);
+        }
+      },
+    })
+  ).current;
+
+  // 点击法币轮转
+  const handleCycleCurrency = () => {
+    setBaseCurrency((prev) => getNextCurrency(prev));
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...edgeSwipeResponder.panHandlers}>
       <StatusBar barStyle="light-content" backgroundColor="#090D16" />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onManualRefresh}
-            tintColor="#38BDF8"
-          />
-        }
-      >
-        {/* Navigation Bar Header */}
-        <View style={styles.navBar}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Text style={styles.hamburgerText}>☰</Text>
-          </TouchableOpacity>
-          <Text style={styles.navTitle}>Investment Tracker</Text>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => openAddModal('BUY')}
-          >
-            <Text style={styles.navIconText}>＋</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Total Assets Overview Card */}
-        <View style={styles.totalCard}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardLabel}>总资产估值 (USD)</Text>
-            {isPolling && <Text style={styles.liveIndicator}>● 实时行情</Text>}
-          </View>
-          <Text style={styles.totalAmount}>
-            ${summary.totalMarketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </Text>
-          <View style={styles.badgeContainer}>
-            <View style={[styles.pnlBadge, !isPositive && styles.pnlBadgeNegative]}>
-              <Text style={[styles.pnlText, !isPositive && styles.pnlTextNegative]}>
-                {isPositive ? '▲ +' : '▼ -'}
-                ${Math.abs(summary.totalUnrealizedPnL).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (
-                {isPositive ? '+' : ''}
-                {summary.totalUnrealizedPnLPercent.toFixed(1)}%)
-              </Text>
+      {/* Navigation Bar Header */}
+      <View style={styles.navBar}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => setIsDrawerOpen(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.hamburgerText}>☰</Text>
+        </TouchableOpacity>
+        <Text style={styles.navTitle}>Investment Tracker</Text>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => openAddModal('BUY')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.navIconText}>＋</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 虚拟化持仓列表，包含总资产卡片头部 */}
+      <AssetList
+        holdings={holdings}
+        currency={baseCurrency}
+        refreshing={refreshing}
+        onRefresh={onManualRefresh}
+        onPressAsset={(holding) => openAddModal('BUY', holding.symbol, holding.platform || 'Binance')}
+        onPressAdd={() => openAddModal('BUY')}
+        ListHeaderComponent={
+          <View>
+            {/* Total Assets Overview Card */}
+            <TotalPortfolioCard
+              summary={summary}
+              holdings={holdings}
+              currency={baseCurrency}
+              isPolling={isPolling}
+              onPressBuy={() => openAddModal('BUY')}
+              onPressSell={() => openAddModal('SELL')}
+              onPressAnalysis={() => setAllocationModalVisible(true)}
+              onPressCurrency={handleCycleCurrency}
+            />
+
+            {/* Section Title */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>持仓投资品 (Holdings)</Text>
+              <TouchableOpacity onPress={() => openAddModal('BUY')}>
+                <Text style={styles.addLink}>+ 添加</Text>
+              </TouchableOpacity>
             </View>
           </View>
+        }
+      />
 
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => openAddModal('BUY')}
-            >
-              <Text style={styles.actionBtnText}>➕ 买入记录</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => openAddModal('SELL')}
-            >
-              <Text style={styles.actionBtnText}>➖ 卖出记账</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={onManualRefresh}>
-              <Text style={styles.actionBtnText}>🔄 刷新行情</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Section Header: Holdings */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>持仓投资品 (Holdings)</Text>
-          <TouchableOpacity onPress={() => openAddModal('BUY')}>
-            <Text style={styles.addLink}>+ 添加</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Dynamic Asset Cards (Per Platform) */}
-        {holdings.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>暂无持仓记录，点击上方「➕ 买入记录」开启记账！</Text>
-          </View>
-        ) : (
-          holdings.map((holding) => {
-            const meta = KNOWN_ASSETS[holding.symbol];
-            const iconBg = meta ? meta.color : '#3B82F6';
-            const isHoldingPositive = holding.unrealizedPnL >= 0;
-
-            return (
-              <TouchableOpacity
-                key={holding.assetId}
-                style={styles.assetCard}
-                onPress={() => openAddModal('BUY', holding.symbol, holding.platform || 'Binance')}
-              >
-                <View style={styles.assetLeft}>
-                  <View style={[styles.coinIcon, { backgroundColor: iconBg }]}>
-                    <Text
-                      style={[
-                        styles.coinIconText,
-                        (holding.symbol === 'SOL' || holding.symbol === 'BNB') && { color: '#090D16' },
-                      ]}
-                    >
-                      {holding.symbol.slice(0, 1)}
-                    </Text>
-                  </View>
-                  <View>
-                    <View style={styles.assetTitleRow}>
-                      <Text style={styles.assetName}>{holding.name}</Text>
-                      {holding.platform && (
-                        <View style={styles.platformBadge}>
-                          <Text style={styles.platformBadgeText}>{holding.platform}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.assetSub}>
-                      {holding.totalQuantity} {holding.symbol} • $
-                      {holding.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.assetRight}>
-                  <Text style={styles.assetValue}>
-                    $
-                    {holding.marketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Text>
-                  <Text style={isHoldingPositive ? styles.pnlGreen : styles.pnlRed}>
-                    {isHoldingPositive ? '+' : ''}
-                    {holding.unrealizedPnLPercent.toFixed(1)}% ({isHoldingPositive ? '+$' : '-$'}
-                    {Math.abs(holding.unrealizedPnL).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })})
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </ScrollView>
-
-      {/* Add Transaction Modal */}
+      {/* 资产买卖记录弹窗 */}
       <AddTransactionModal
         visible={modalVisible}
         initialType={modalType}
@@ -344,6 +296,24 @@ export default function App() {
         txRepo={txRepo}
         exchangeService={defaultExchangeService}
       />
+
+      {/* 资产配比与统计分析弹窗 */}
+      <PortfolioAllocationModal
+        visible={allocationModalVisible}
+        onClose={() => setAllocationModalVisible(false)}
+        holdings={holdings}
+        totalMarketValue={summary.totalMarketValue}
+        currency={baseCurrency}
+      />
+
+      {/* 左侧滑动边栏抽屉 */}
+      <AppDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        activeScreen="home"
+        currency={baseCurrency}
+        onCurrencyChange={(next) => setBaseCurrency(next)}
+      />
     </SafeAreaView>
   );
 }
@@ -353,16 +323,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#090D16',
   },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 40,
-  },
   navBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 14,
   },
   iconButton: {
     width: 40,
@@ -389,87 +356,12 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     fontSize: 18,
   },
-  totalCard: {
-    backgroundColor: 'rgba(18, 26, 43, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 24,
-    padding: 22,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 6,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  cardLabel: {
-    color: '#94A3B8',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  liveIndicator: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  totalAmount: {
-    color: '#FFFFFF',
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -1,
-    marginBottom: 8,
-  },
-  badgeContainer: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  pnlBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  pnlBadgeNegative: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-  },
-  pnlText: {
-    color: '#10B981',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  pnlTextNegative: {
-    color: '#EF4444',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  actionBtn: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  actionBtnText: {
-    color: '#E2E8F0',
-    fontSize: 12,
-    fontWeight: '600',
-  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    marginTop: 4,
   },
   sectionTitle: {
     color: '#FFFFFF',
@@ -480,178 +372,5 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontSize: 14,
     fontWeight: '600',
-  },
-  txCountText: {
-    color: '#64748B',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  emptyContainer: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(18, 26, 43, 0.4)',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  emptyText: {
-    color: '#94A3B8',
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  assetCard: {
-    backgroundColor: 'rgba(18, 26, 43, 0.75)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 18,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  assetLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  assetTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  coinIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coinIconText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  assetName: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  platformBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.4)',
-  },
-  platformBadgeText: {
-    color: '#60A5FA',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  assetSub: {
-    color: '#94A3B8',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  assetRight: {
-    alignItems: 'flex-end',
-  },
-  assetValue: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  pnlGreen: {
-    color: '#10B981',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  pnlRed: {
-    color: '#EF4444',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  // 交易流水记录卡片样式
-  txCard: {
-    backgroundColor: 'rgba(18, 26, 43, 0.55)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  txLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  txTypeTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  txTagBuy: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-  },
-  txTagSell: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-  },
-  txTypeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  txTextBuy: {
-    color: '#10B981',
-  },
-  txTextSell: {
-    color: '#EF4444',
-  },
-  txHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  txSymbolText: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  txPlatformBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  txPlatformText: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  txDateText: {
-    color: '#64748B',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  txRight: {
-    alignItems: 'flex-end',
-  },
-  txAmountText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  txSubText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    marginTop: 2,
   },
 });

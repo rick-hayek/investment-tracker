@@ -102,16 +102,16 @@ gantt
 ### Sprint 3: 边栏导航与首页看板 (Week 3)
 > **目标**：实现流畅的左侧抽屉手势动效与首页总资产/持仓列表完整交互。
 
-- [ ] **Task 3.1: 侧边栏抽屉导航 (Drawer Navigation)**
+- [x] **Task 3.1: 侧边栏抽屉导航 (Drawer Navigation)**
   - 集成 `@react-navigation/drawer`，配合 `react-native-gesture-handler` 实现屏幕左边缘滑动手势（Edge Swipe）。
   - 抽屉自定义组件：顶部个人卡片（头像、Rick H.、Pro 标）、中间导航条目（`Home`、`Settings/Profile`）、底部快捷区（基准法币显示、Face ID 开关、版本号）。
   - 优化滑出动效为 280ms 贝塞尔曲线，配置右侧半透明高斯模糊遮罩。
-- [ ] **Task 3.2: 首页总资产卡片 (Total Portfolio Card)**
+- [x] **Task 3.2: 首页总资产卡片 (Total Portfolio Card)**
   - 大字号总资产展示，支持法币符号动态替换（`$` / `¥` / `€`）。
   - 盈亏指示器胶囊：展示累计总盈亏与当日 24h 涨跌，支持点击切换展示模式。
   - 绘制近期资产走势 Sparkline 微缩折线图。
   - 快捷操作按钮（买入记录、卖出记账、统计分析）。
-- [ ] **Task 3.3: 投资品持仓列表 (Asset List)**
+- [x] **Task 3.3: 投资品持仓列表 (Asset List)**
   - 虚拟化滚动列表（`FlashList` / `FlatList`），展示各持仓代币 Logo、代码、实时市价、持有总量、持币总市值与盈亏比例。
   - 下拉刷新手势与本地缓存瞬间渲染逻辑（秒开体验）。
   - 点击列表项携带代币 ID 平滑转场至详情页。
