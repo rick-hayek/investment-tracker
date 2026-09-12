@@ -59,6 +59,27 @@ export class TransactionRepository {
     ]);
   }
 
+  public async update(tx: Transaction): Promise<boolean> {
+    const sql = `
+      UPDATE transactions
+      SET asset_id = ?, type = ?, amount = ?, price = ?, fee = ?, fee_currency = ?, platform = ?, timestamp = ?, notes = ?
+      WHERE id = ?;
+    `;
+    const result = await this.db.run(sql, [
+      tx.assetId,
+      tx.type,
+      tx.amount,
+      tx.price,
+      tx.fee !== undefined && tx.fee !== null ? tx.fee : 0,
+      tx.feeCurrency || 'USD',
+      tx.platform,
+      tx.timestamp,
+      tx.notes || null,
+      tx.id,
+    ]);
+    return result.changes > 0;
+  }
+
   public async findById(id: string): Promise<Transaction | null> {
     const sql = `SELECT * FROM transactions WHERE id = ? LIMIT 1;`;
     const row = await this.db.get<TransactionRow>(sql, [id]);

@@ -177,6 +177,42 @@ export const MoonIcon: React.FC<IconProps> = ({
 );
 
 /**
+ * 极简太阳线条图标 (Sun / Light Mode)
+ */
+export const SunIcon: React.FC<IconProps> = ({
+  size = 20,
+  color = '#94A3B8',
+  strokeWidth = 1.8,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="5" stroke={color} strokeWidth={strokeWidth} />
+    <Line x1="12" y1="1" x2="12" y2="3" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="12" y1="21" x2="12" y2="23" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="1" y1="12" x2="3" y2="12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="21" y1="12" x2="23" y2="12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+  </Svg>
+);
+
+/**
+ * 极简屏幕设备线条图标 (System / Auto Mode)
+ */
+export const SystemMonitorIcon: React.FC<IconProps> = ({
+  size = 20,
+  color = '#94A3B8',
+  strokeWidth = 1.8,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Rect x="2" y="3" width="20" height="14" rx="2" stroke={color} strokeWidth={strokeWidth} />
+    <Line x1="8" y1="21" x2="16" y2="21" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="12" y1="17" x2="12" y2="21" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+  </Svg>
+);
+
+/**
  * 极简出库托盘 + 向下箭头图标 (Export CSV)
  */
 export const ExportCsvIcon: React.FC<IconProps> = ({
@@ -207,6 +243,32 @@ export const ExportCsvIcon: React.FC<IconProps> = ({
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
+    />
+  </Svg>
+);
+
+/**
+ * 极简导入导出双向数据传输图标 (Import & Export)
+ */
+export const ImportExportIcon: React.FC<IconProps> = ({
+  size = 20,
+  color = '#94A3B8',
+  strokeWidth = 1.8,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M7 4V18M7 18L3 14M7 18L11 14"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M17 20V6M17 6L13 10M17 6L21 10"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -616,4 +678,31 @@ export const CheckCircleIcon: React.FC<IconProps> = ({
     />
   </Svg>
 );
+
+/**
+ * 极简投资上升趋势 Logo 图标 (Investment Growth / Trend Arrow)
+ */
+export const AppLogoIcon: React.FC<IconProps> = ({
+  size = 22,
+  color = '#38BDF8',
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M3 17L8.5 11.5L12.5 15.5L21 7"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M15 7H21V13"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 

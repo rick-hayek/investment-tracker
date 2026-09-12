@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,16 @@ import {
   TouchableWithoutFeedback,
   Platform,
 } from 'react-native';
-import { CurrencyType } from '../../domain/types';
+import { CurrencyType, CloudUserInfo, ThemeMode } from '../../domain/types';
 import { CURRENCY_CONFIGS, getNextCurrency } from '../../domain/currency';
 import { LanguageType, t, getLanguageName } from '../../i18n';
 import {
   HomeIcon,
   SettingsGearIcon,
-  UserAvatarIcon,
   CloseCrossIcon,
+  AppLogoIcon,
 } from '../common/Icons';
+import { useTheme } from '../../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.78, 300);
@@ -37,6 +38,10 @@ export interface AppDrawerProps {
   biometricEnabled?: boolean;
   language?: LanguageType;
   onLanguageChange?: (next: LanguageType) => void;
+  themeMode?: ThemeMode;
+  onThemeChange?: (next: ThemeMode) => void;
+  onPressLogin?: () => void;
+  cloudUser?: CloudUserInfo | null;
 }
 
 export const AppDrawer: React.FC<AppDrawerProps> = ({
@@ -52,9 +57,38 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
   biometricEnabled = false,
   language = 'zh',
   onLanguageChange,
+  themeMode,
+  onThemeChange,
+  onPressLogin,
+  cloudUser,
 }) => {
+  const { colors, isDark, themeMode: contextThemeMode, setThemeMode } = useTheme();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
+
+  const currentThemeMode: ThemeMode = themeMode ?? contextThemeMode ?? 'dark';
+
+  const handleCycleTheme = () => {
+    const next: ThemeMode =
+      currentThemeMode === 'dark' ? 'light' : currentThemeMode === 'light' ? 'system' : 'dark';
+    if (onThemeChange) {
+      onThemeChange(next);
+    } else if (setThemeMode) {
+      setThemeMode(next);
+    }
+  };
+
+  const themeLabel = useMemo(() => {
+    switch (currentThemeMode) {
+      case 'system':
+        return t('settings.themeSystem', language);
+      case 'light':
+        return t('settings.themeLight', language);
+      case 'dark':
+      default:
+        return t('settings.themeDark', language);
+    }
+  }, [currentThemeMode, language]);
 
   // 动画控制：280ms 贝塞尔曲线
   useEffect(() => {
@@ -146,8 +180,12 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
           },
         ]}
       >
-        <TouchableOpacity style={styles.floatingCloseBtn} onPress={onClose} activeOpacity={0.7}>
-          <CloseCrossIcon size={16} color="#F8FAFC" />
+        <TouchableOpacity
+          style={[styles.floatingCloseBtn, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+          onPress={onClose}
+          activeOpacity={0.7}
+        >
+          <CloseCrossIcon size={16} color={colors.textPrimary} />
         </TouchableOpacity>
       </Animated.View>
 
@@ -158,23 +196,24 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
           {
             width: DRAWER_WIDTH,
             transform: [{ translateX: slideAnim }],
+            backgroundColor: colors.drawerBackground,
+            borderRightColor: colors.drawerBorder,
           },
         ]}
         {...panResponder.panHandlers}
       >
         <View style={styles.topSection}>
-          {/* 顶部个人名片 */}
-          <View style={styles.profileCard}>
-            <View style={styles.avatar}>
-              <UserAvatarIcon size={24} color="#94A3B8" />
+          {/* Brand Header: SVG Line Logo + App Name */}
+          <View style={styles.brandContainer}>
+            <View style={styles.brandHeader}>
+              <AppLogoIcon size={20} color={colors.accent} strokeWidth={2} />
+              <Text style={[styles.brandTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                Investment Tracker
+              </Text>
             </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>Rick H.</Text>
-              <Text style={styles.userEmail}>rick@example.com</Text>
-              <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>Crypto Track Pro</Text>
-              </View>
-            </View>
+
+            {/* 分隔线 */}
+            <View style={[styles.brandDivider, { backgroundColor: colors.divider }]} />
           </View>
 
           {/* 导航条目 (主页项具有设计图同款发光边框) */}
@@ -182,7 +221,10 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             <TouchableOpacity
               style={[
                 styles.menuItem,
-                activeScreen === 'home' && styles.menuItemActive,
+                activeScreen === 'home' && [
+                  styles.menuItemActive,
+                  { backgroundColor: colors.menuActiveBackground, borderColor: colors.menuActiveBorder },
+                ],
               ]}
               onPress={() => {
                 onNavigateHome?.();
@@ -190,11 +232,12 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
               }}
               activeOpacity={0.7}
             >
-              <HomeIcon size={20} color={activeScreen === 'home' ? '#38BDF8' : '#94A3B8'} />
+              <HomeIcon size={20} color={activeScreen === 'home' ? colors.accent : colors.textSecondary} />
               <Text
                 style={[
                   styles.menuTitle,
-                  activeScreen === 'home' && styles.menuTitleActive,
+                  { color: colors.textSecondary },
+                  activeScreen === 'home' && [styles.menuTitleActive, { color: colors.accent }],
                 ]}
               >
                 {t('drawer.portfolioHome', language)}
@@ -204,7 +247,10 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             <TouchableOpacity
               style={[
                 styles.menuItem,
-                activeScreen === 'settings' && styles.menuItemActive,
+                activeScreen === 'settings' && [
+                  styles.menuItemActive,
+                  { backgroundColor: colors.menuActiveBackground, borderColor: colors.menuActiveBorder },
+                ],
               ]}
               onPress={() => {
                 onNavigateSettings?.();
@@ -212,11 +258,12 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
               }}
               activeOpacity={0.7}
             >
-              <SettingsGearIcon size={20} color={activeScreen === 'settings' ? '#38BDF8' : '#94A3B8'} />
+              <SettingsGearIcon size={20} color={activeScreen === 'settings' ? colors.accent : colors.textSecondary} />
               <Text
                 style={[
                   styles.menuTitle,
-                  activeScreen === 'settings' && styles.menuTitleActive,
+                  { color: colors.textSecondary },
+                  activeScreen === 'settings' && [styles.menuTitleActive, { color: colors.accent }],
                 ]}
               >
                 {t('drawer.settingsAndProfile', language)}
@@ -233,8 +280,8 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             onPress={handleCycleCurrency}
             activeOpacity={0.7}
           >
-            <Text style={styles.prefLabel}>{t('drawer.baseCurrencyLabel', language)}:</Text>
-            <Text style={styles.currencyValueText}>
+            <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>{t('drawer.baseCurrencyLabel', language)}:</Text>
+            <Text style={[styles.currencyValueText, { color: colors.accent }]}>
               {CURRENCY_CONFIGS[currency]?.name || currency} ⇄
             </Text>
           </TouchableOpacity>
@@ -248,9 +295,21 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             }}
             activeOpacity={0.7}
           >
-            <Text style={styles.prefLabel}>{t('settings.language', language)}:</Text>
-            <Text style={styles.currencyValueText}>
+            <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>{t('settings.language', language)}:</Text>
+            <Text style={[styles.currencyValueText, { color: colors.accent }]}>
               {getLanguageName(language)} ⇄
+            </Text>
+          </TouchableOpacity>
+
+          {/* 外观主题切换 (Dark -> Light -> System -> Dark) */}
+          <TouchableOpacity
+            style={styles.prefRow}
+            onPress={handleCycleTheme}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>{t('settings.theme', language)}:</Text>
+            <Text style={[styles.currencyValueText, { color: colors.accent }]}>
+              {themeLabel} ⇄
             </Text>
           </TouchableOpacity>
 
@@ -260,21 +319,21 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             onPress={onTogglePrivacy}
             activeOpacity={0.7}
           >
-            <Text style={styles.prefLabel}>{t('drawer.privacyModeLabel', language)}:</Text>
-            <Text style={privacyMode ? styles.secActiveText : styles.secDisabledText}>
+            <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>{t('drawer.privacyModeLabel', language)}:</Text>
+            <Text style={privacyMode ? [styles.secActiveText, { color: colors.gain }] : [styles.secDisabledText, { color: colors.textMuted }]}>
               {privacyMode ? t('common.on', language) : t('common.off', language)}
             </Text>
           </TouchableOpacity>
 
           {/* 生物识别安全锁状态 */}
           <View style={styles.prefRow}>
-            <Text style={styles.prefLabel}>{t('drawer.biometricLockLabel', language)}:</Text>
-            <Text style={styles.secDisabledText}>{t('drawer.planned', language)}</Text>
+            <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>{t('drawer.biometricLockLabel', language)}:</Text>
+            <Text style={[styles.secDisabledText, { color: colors.textMuted }]}>{t('drawer.planned', language)}</Text>
           </View>
 
           {/* 版本号 */}
           <View style={styles.versionRow}>
-            <Text style={styles.versionText}>{t('drawer.version', language)}</Text>
+            <Text style={[styles.versionText, { color: colors.textMuted }]}>{t('drawer.version', language)}</Text>
           </View>
         </View>
       </Animated.View>
@@ -306,55 +365,29 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   topSection: {
-    gap: 20,
+    gap: 16,
   },
-  profileCard: {
+  brandContainer: {
+    gap: 14,
+  },
+  brandHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(59, 130, 246, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.5)',
-  },
-  avatarText: {
-    fontSize: 20,
-  },
-  userInfo: {
-    gap: 2,
-  },
-  userName: {
-    color: '#FFFFFF',
-    fontSize: 15,
+  brandTitle: {
+    flex: 1,
+    color: '#F8FAFC',
+    fontSize: 16,
     fontWeight: '700',
+    letterSpacing: -0.3,
   },
-  proBadge: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  proBadgeText: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  userEmail: {
-    color: '#8E9BAE',
-    fontSize: 12,
-    marginBottom: 2,
+  brandDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    marginHorizontal: 8,
   },
   closeBtnWrapper: {
     position: 'absolute',

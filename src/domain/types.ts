@@ -84,6 +84,15 @@ export interface PortfolioSummary {
 
 import { LanguageType } from '../i18n/types';
 
+export interface CloudUserInfo {
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+  connectedAt?: number;
+}
+
+export type ThemeMode = 'system' | 'dark' | 'light';
+
 /**
  * 用户配置模型
  */
@@ -92,7 +101,8 @@ export interface UserSettings {
   privacyMode: boolean; // 是否隐藏具体金额
   biometricLock?: boolean; // 是否启用生物识别 (暂缓)
   appSwitcherBlur: boolean; // 切出多任务后台是否显示防截屏遮罩
-  theme: 'dark' | 'light';
+  theme: ThemeMode;
   language: LanguageType;
+  cloudUser?: CloudUserInfo | null; // 登录 Google Drive 云端同步后保存的用户信息
 }
 

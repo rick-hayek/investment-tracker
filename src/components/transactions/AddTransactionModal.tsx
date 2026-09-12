@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { PlatformType, TransactionType, Asset, AssetHolding } from '../../domain/types';
+import { PlatformType, TransactionType, Asset, AssetHolding, Transaction } from '../../domain/types';
 import { PnLEngine } from '../../domain/calculations/pnlEngine';
 import { AssetRepository } from '../../database/repositories/assetRepository';
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
@@ -25,12 +25,13 @@ import {
   SearchIcon,
   LockIcon,
   ChevronDownIcon,
+  TrashCanIcon,
   BtcLogo,
   EthLogo,
   SolLogo,
 } from '../common/Icons';
 
-interface AddTransactionModalProps {
+export interface AddTransactionModalProps {
   visible: boolean;
   initialType?: TransactionType;
   initialSymbol?: string;
@@ -38,8 +39,10 @@ interface AddTransactionModalProps {
   lockAsset?: boolean;
   holdings?: AssetHolding[];
   language?: LanguageType;
+  editingTransaction?: Transaction | null;
   onClose: () => void;
   onSuccess?: () => void;
+  onDeleteTransaction?: (txId: string) => Promise<void> | void;
   assetRepo?: AssetRepository;
   txRepo?: TransactionRepository;
   exchangeService?: ExchangeService;
@@ -63,12 +66,15 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   lockAsset = false,
   holdings = [],
   language = 'zh',
+  editingTransaction,
   onClose,
   onSuccess,
+  onDeleteTransaction,
   assetRepo,
   txRepo,
   exchangeService = defaultExchangeService,
 }) => {
+  const isEditing = !!editingTransaction;
   const [txType, setTxType] = useState<TransactionType>(initialType);
   const [platform, setPlatform] = useState<PlatformType>(initialPlatform);
   const [symbol, setSymbol] = useState(initialSymbol);
@@ -193,6 +199,28 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     prevVisibleRef.current = visible;
 
     if (isOpening) {
+      if (editingTransaction) {
+        setTxType(editingTransaction.type);
+        setPlatform(editingTransaction.platform);
+        const base = extractBaseSymbol(
+          editingTransaction.assetId.includes('_')
+            ? editingTransaction.assetId.split('_')[0]
+            : editingTransaction.assetId
+        ).toUpperCase();
+        setSymbol(base);
+        setPriceStr(editingTransaction.price.toString());
+        setAmountStr(editingTransaction.amount.toString());
+        setDateStr(formatCurrentDateTime(new Date(editingTransaction.timestamp)));
+        setNotes(editingTransaction.notes || '');
+        setErrorMessage(null);
+        setPriceNotice(null);
+        setIsHoldingDropdownOpen(false);
+
+        const key = `${editingTransaction.platform}_${base}`;
+        fetchedTokenKeyRef.current = key;
+        return;
+      }
+
       setTxType(initialType);
       setIsHoldingDropdownOpen(false);
       setPriceStr('');
@@ -226,7 +254,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         fetchMarketPrice(targetPlat, targetSym.trim(), false);
       }
     }
-  }, [visible]);
+  }, [visible, editingTransaction]);
 
   // 2. 当用户修改代币或平台后，自动获取当前代币在当前平台的价格一次，获取一次后不再自动更新
   useEffect(() => {
@@ -259,6 +287,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       const txs = await txRepo.findByAssetId(targetAssetId);
       let total = 0;
       for (const t of txs) {
+        if (editingTransaction && t.id === editingTransaction.id) {
+          continue;
+        }
         if (t.type === 'BUY') {
           total += t.amount;
         } else if (t.type === 'SELL') {
@@ -272,7 +303,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setHoldingQty(0);
       return 0;
     }
-  }, [txRepo, symbol, platform]);
+  }, [txRepo, symbol, platform, editingTransaction]);
 
   useEffect(() => {
     if (visible) {
@@ -446,6 +477,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           const freshTxs = await txRepo.findByAssetId(assetId);
           let sum = 0;
           for (const t of freshTxs) {
+            if (editingTransaction && t.id === editingTransaction.id) continue;
             if (t.type === 'BUY') sum += t.amount;
             else if (t.type === 'SELL') sum -= t.amount;
           }
@@ -512,22 +544,36 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         }
       }
 
-      // 2. 如果提供了 TransactionRepository，插入交易
+      // 2. 如果提供了 TransactionRepository，插入或更新交易
       if (txRepo) {
-        const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        await txRepo.insert({
-          id: txId,
-          assetId,
-          type: txType,
-          amount: q,
-          price: p,
-          fee: 0,
-          feeCurrency: 'USD',
-          platform,
-          timestamp: finalTimestamp,
-          notes: notes.trim() || undefined,
-          createdAt: Date.now(),
-        });
+        if (editingTransaction) {
+          const updatedTx: Transaction = {
+            ...editingTransaction,
+            assetId,
+            type: txType,
+            amount: q,
+            price: p,
+            platform,
+            timestamp: finalTimestamp,
+            notes: notes.trim() || undefined,
+          };
+          await txRepo.update(updatedTx);
+        } else {
+          const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          await txRepo.insert({
+            id: txId,
+            assetId,
+            type: txType,
+            amount: q,
+            price: p,
+            fee: 0,
+            feeCurrency: 'USD',
+            platform,
+            timestamp: finalTimestamp,
+            notes: notes.trim() || undefined,
+            createdAt: Date.now(),
+          });
+        }
       }
 
       onSuccess?.();
@@ -537,6 +583,47 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // 确认并删除交易记录
+  const handleConfirmDelete = () => {
+    if (!editingTransaction) return;
+    showAlert(
+      language === 'zh' ? '确认删除交易记录？' : 'Delete Transaction?',
+      language === 'zh'
+        ? '删除后该笔交易记录将无法恢复，系统将重新计算您的持仓量与成本盈亏。'
+        : 'This transaction will be permanently removed and your holdings will be recalculated.',
+      [
+        {
+          text: t('common.cancel', language),
+          style: 'cancel',
+        },
+        {
+          text: language === 'zh' ? '确认删除' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!editingTransaction || !txRepo) return;
+            setIsSubmitting(true);
+            try {
+              if (onDeleteTransaction) {
+                await onDeleteTransaction(editingTransaction.id);
+              } else {
+                await txRepo.delete(editingTransaction.id);
+              }
+              onSuccess?.();
+              onClose();
+            } catch (err: any) {
+              setErrorMessage(
+                `${language === 'zh' ? '删除交易失败' : 'Failed to delete transaction'}: ${err?.message || 'System error'}`
+              );
+            } finally {
+              setIsSubmitting(false);
+            }
+          },
+        },
+      ],
+      'danger'
+    );
   };
 
   const isBuy = txType === 'BUY';
@@ -559,8 +646,23 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
               <CloseCrossIcon size={16} color="#94A3B8" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>{t('transaction.recordTitle', language)}</Text>
-            <View style={styles.headerSpacer} />
+            <Text style={styles.modalTitle}>
+              {isEditing
+                ? (language === 'zh' ? '编辑交易记录' : 'Edit Transaction')
+                : t('transaction.recordTitle', language)}
+            </Text>
+            {isEditing ? (
+              <TouchableOpacity
+                onPress={handleConfirmDelete}
+                style={[styles.closeBtn, styles.deleteHeaderBtn]}
+                activeOpacity={0.7}
+                disabled={isSubmitting}
+              >
+                <TrashCanIcon size={18} color="#EF4444" />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.headerSpacer} />
+            )}
           </View>
 
           <ScrollView
@@ -930,24 +1032,60 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               <Text style={styles.sumVal}>${calculatedTotal}</Text>
             </View>
 
-            {/* 提交按钮 */}
-            <TouchableOpacity
-              style={[
-                styles.submitBtn,
-                { backgroundColor: themeColor },
-                isSubmitting && { opacity: 0.7 },
-              ]}
-              onPress={handleSubmit}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.submitBtnText}>
-                  {isBuy ? t('transaction.confirmBuy', language) : t('transaction.confirmSell', language)}
-                </Text>
-              )}
-            </TouchableOpacity>
+            {/* 操作按钮区：编辑模式下取消与保存同一行显示，普通模式下显示确认买入/卖出 */}
+            {isEditing ? (
+              <View style={styles.editActionsRow}>
+                <TouchableOpacity
+                  style={styles.cancelEditBtn}
+                  onPress={onClose}
+                  activeOpacity={0.7}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.cancelEditBtnText}>
+                    {language === 'zh' ? '取消' : 'Cancel'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.submitBtn,
+                    styles.saveEditBtnInRow,
+                    { backgroundColor: themeColor },
+                    isSubmitting && { opacity: 0.7 },
+                  ]}
+                  onPress={handleSubmit}
+                  activeOpacity={0.8}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.submitBtnText}>
+                      {language === 'zh' ? '保存更新' : 'Save Changes'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.submitBtn,
+                  { backgroundColor: themeColor },
+                  isSubmitting && { opacity: 0.7 },
+                ]}
+                onPress={handleSubmit}
+                disabled={isSubmitting}
+                activeOpacity={0.8}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>
+                    {isBuy ? t('transaction.confirmBuy', language) : t('transaction.confirmSell', language)}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -1231,6 +1369,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.2,
+  },
+  deleteHeaderBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  editActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  cancelEditBtn: {
+    flex: 1,
+    paddingVertical: 15,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelEditBtnText: {
+    color: '#94A3B8',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  saveEditBtnInRow: {
+    flex: 1,
+    marginTop: 0,
   },
   inputBoxError: {
     borderColor: '#EF4444',

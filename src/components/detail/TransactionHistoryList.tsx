@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Transaction, CurrencyType, PlatformType } from '../../domain/types';
 import { formatCurrencyValue } from '../../domain/currency';
 import { LanguageType, t } from '../../i18n';
@@ -11,6 +11,7 @@ export interface TransactionHistoryListProps {
   averageCost: number;
   currency: CurrencyType;
   language?: LanguageType;
+  onPressTransaction?: (tx: Transaction) => void;
 }
 
 export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
@@ -20,6 +21,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
   averageCost,
   currency,
   language = 'zh',
+  onPressTransaction,
 }) => {
   // 严格过滤仅属于当前平台的交易
   const filtered = platform
@@ -77,7 +79,12 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
           });
 
           return (
-            <View key={tx.id} style={styles.card}>
+            <TouchableOpacity
+              key={tx.id}
+              style={styles.card}
+              onPress={() => onPressTransaction?.(tx)}
+              activeOpacity={0.7}
+            >
               {/* 卡片左侧：类型、平台、时间与买卖量 */}
               <View style={styles.cardLeft}>
                 <View style={styles.badgeRow}>
@@ -125,7 +132,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
                   </Text>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>

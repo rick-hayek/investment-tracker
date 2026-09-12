@@ -107,6 +107,27 @@ export class MemorySqliteAdapter implements IDatabaseConnection {
       return { changes: 0 };
     }
 
+    if (normalized.startsWith('UPDATE TRANSACTIONS')) {
+      const [asset_id, type, amount, price, fee, fee_currency, platform, timestamp, notes, id] = params;
+      const existing = this.transactionsTable.get(id);
+      if (existing) {
+        this.transactionsTable.set(id, {
+          ...existing,
+          asset_id,
+          type,
+          amount,
+          price,
+          fee,
+          fee_currency,
+          platform,
+          timestamp,
+          notes,
+        });
+        return { changes: 1 };
+      }
+      return { changes: 0 };
+    }
+
     return { changes: 0 };
   }
 

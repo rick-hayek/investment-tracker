@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -32,6 +32,8 @@ export interface AssetDetailScreenProps {
   language?: LanguageType;
   onClose: () => void;
   onOpenAddTransaction: (type: TransactionType, symbol: string, platform: PlatformType) => void;
+  onOpenEditTransaction?: (tx: Transaction) => void;
+  allTransactions?: Transaction[];
   txRepo?: TransactionRepository;
   exchangeService?: ExchangeService;
 }
@@ -44,11 +46,13 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
   language = 'zh',
   onClose,
   onOpenAddTransaction,
+  onOpenEditTransaction,
+  allTransactions,
   txRepo,
   exchangeService = defaultExchangeService,
 }) => {
   const [isFavorite, setIsFavorite] = useState(false);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
   // 加载该资产的历史交易流水 (严格限定匹配当前资产与当前平台)
   const loadTransactions = useCallback(async () => {
@@ -60,7 +64,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
         const matchesPlatform = !holding.platform || tx.platform === holding.platform;
         return matchesAsset && matchesPlatform;
       });
-      setTransactions(filtered);
+      setLocalTransactions(filtered);
     } catch (err) {
       console.warn('Failed to load asset detail txs:', err);
     }
@@ -71,6 +75,18 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
       loadTransactions();
     }
   }, [visible, holding, loadTransactions]);
+
+  const transactions = useMemo(() => {
+    if (!holding) return [];
+    if (allTransactions) {
+      return allTransactions.filter((tx) => {
+        const matchesAsset = tx.assetId === holding.assetId;
+        const matchesPlatform = !holding.platform || tx.platform === holding.platform;
+        return matchesAsset && matchesPlatform;
+      });
+    }
+    return localTransactions;
+  }, [allTransactions, localTransactions, holding]);
 
   if (!holding) return null;
 
@@ -135,6 +151,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
             averageCost={holding.averageCost}
             currency={currency}
             language={language}
+            onPressTransaction={onOpenEditTransaction}
           />
         </ScrollView>
 

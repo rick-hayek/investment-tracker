@@ -29,6 +29,8 @@ import { defaultForexService } from './src/services/forexService';
 import { useMarketPoll } from './src/services/useMarketPoll';
 import { MenuIcon, BellIcon } from './src/components/common/Icons';
 import { LanguageType, t } from './src/i18n';
+import { ThemeProvider, useTheme } from './src/theme';
+import { extractBaseSymbol } from './src/services/symbolMapper';
 
 export default function App() {
   const assetRepo = useMemo(() => new AssetRepository(), []);
@@ -50,6 +52,7 @@ export default function App() {
   const [modalSymbol, setModalSymbol] = useState<string>('BTC');
   const [modalPlatform, setModalPlatform] = useState<PlatformType>('Binance');
   const [modalLockAsset, setModalLockAsset] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   // 资产配比统计弹窗
   const [allocationModalVisible, setAllocationModalVisible] = useState(false);
@@ -157,7 +160,7 @@ export default function App() {
               change24h: ticker.change24hPercent,
             };
           } catch {
-            // 保留原有价格
+            // 个别资产拉取失败不中断全局
           }
         })
       );
@@ -213,11 +216,33 @@ export default function App() {
     platform: PlatformType = 'Binance',
     lockAsset = false
   ) => {
+    setEditingTransaction(null);
     setModalType(type);
     setModalSymbol(symbol);
     setModalPlatform(platform);
     setModalLockAsset(lockAsset);
     setModalVisible(true);
+  };
+
+  const openEditModal = (tx: Transaction) => {
+    setEditingTransaction(tx);
+    setModalType(tx.type);
+    const base = extractBaseSymbol(tx.assetId.includes('_') ? tx.assetId.split('_')[0] : tx.assetId).toUpperCase();
+    setModalSymbol(base);
+    setModalPlatform(tx.platform);
+    setModalLockAsset(true);
+    setModalVisible(true);
+  };
+
+  const handleDeleteTransaction = async (txId: string) => {
+    await txRepo.delete(txId);
+    await reloadData();
+    await refreshPrices();
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setEditingTransaction(null);
   };
 
   const handleTransactionSuccess = async () => {
@@ -262,25 +287,181 @@ export default function App() {
   const currentLanguage = userSettings.language || 'zh';
 
   return (
-    <SafeAreaView style={styles.container} {...edgeSwipeResponder.panHandlers}>
-      <StatusBar barStyle="light-content" backgroundColor="#090D16" />
+    <ThemeProvider
+      themeMode={userSettings.theme}
+      onThemeChange={(mode) => handleUpdateSettings({ theme: mode })}
+    >
+      <AppContent
+        edgeSwipeResponder={edgeSwipeResponder}
+        currentLanguage={currentLanguage}
+        userSettings={userSettings}
+        baseCurrency={baseCurrency}
+        handleUpdateSettings={handleUpdateSettings}
+        handleCycleCurrency={handleCycleCurrency}
+        holdings={holdings}
+        summary={summary}
+        refreshing={refreshing}
+        onManualRefresh={onManualRefresh}
+        openAddModal={openAddModal}
+        openEditModal={openEditModal}
+        editingTransaction={editingTransaction}
+        handleDeleteTransaction={handleDeleteTransaction}
+        handleCloseModal={handleCloseModal}
+        isDrawerOpen={isDrawerOpen}
+        setIsDrawerOpen={setIsDrawerOpen}
+        modalVisible={modalVisible}
+        modalType={modalType}
+        modalSymbol={modalSymbol}
+        modalPlatform={modalPlatform}
+        modalLockAsset={modalLockAsset}
+        setModalVisible={setModalVisible}
+        handleTransactionSuccess={handleTransactionSuccess}
+        allocationModalVisible={allocationModalVisible}
+        setAllocationModalVisible={setAllocationModalVisible}
+        detailVisible={detailVisible}
+        setDetailVisible={setDetailVisible}
+        setSelectedHolding={setSelectedHolding}
+        activeDetailHolding={activeDetailHolding}
+        settingsVisible={settingsVisible}
+        setSettingsVisible={setSettingsVisible}
+        assets={assets}
+        transactions={transactions}
+        handleDataResetOrImported={handleDataResetOrImported}
+        isBackgroundBlocked={isBackgroundBlocked}
+        isPolling={isPolling}
+        assetRepo={assetRepo}
+        txRepo={txRepo}
+        settingsRepo={settingsRepo}
+      />
+    </ThemeProvider>
+  );
+}
+
+interface AppContentProps {
+  edgeSwipeResponder: any;
+  currentLanguage: LanguageType;
+  userSettings: UserSettings;
+  baseCurrency: CurrencyType;
+  handleUpdateSettings: (partial: Partial<UserSettings>) => Promise<void>;
+  handleCycleCurrency: () => void;
+  holdings: AssetHolding[];
+  summary: any;
+  refreshing: boolean;
+  onManualRefresh: () => Promise<void>;
+  openAddModal: (type: TransactionType, symbol?: string, platform?: PlatformType, lockAsset?: boolean) => void;
+  openEditModal: (tx: Transaction) => void;
+  editingTransaction: Transaction | null;
+  handleDeleteTransaction: (txId: string) => Promise<void>;
+  handleCloseModal: () => void;
+  isDrawerOpen: boolean;
+  setIsDrawerOpen: (open: boolean) => void;
+  modalVisible: boolean;
+  modalType: TransactionType;
+  modalSymbol: string;
+  modalPlatform: PlatformType;
+  modalLockAsset: boolean;
+  setModalVisible: (open: boolean) => void;
+  handleTransactionSuccess: () => Promise<void>;
+  allocationModalVisible: boolean;
+  setAllocationModalVisible: (open: boolean) => void;
+  detailVisible: boolean;
+  setDetailVisible: (open: boolean) => void;
+  setSelectedHolding: (holding: AssetHolding | null) => void;
+  activeDetailHolding: AssetHolding | null;
+  settingsVisible: boolean;
+  setSettingsVisible: (open: boolean) => void;
+  assets: Asset[];
+  transactions: Transaction[];
+  handleDataResetOrImported: () => Promise<void>;
+  isBackgroundBlocked: boolean;
+  isPolling: boolean;
+  assetRepo: AssetRepository;
+  txRepo: TransactionRepository;
+  settingsRepo: SettingsRepository;
+}
+
+function AppContent({
+  edgeSwipeResponder,
+  currentLanguage,
+  userSettings,
+  baseCurrency,
+  handleUpdateSettings,
+  handleCycleCurrency,
+  holdings,
+  summary,
+  refreshing,
+  onManualRefresh,
+  openAddModal,
+  openEditModal,
+  editingTransaction,
+  handleDeleteTransaction,
+  handleCloseModal,
+  isDrawerOpen,
+  setIsDrawerOpen,
+  modalVisible,
+  modalType,
+  modalSymbol,
+  modalPlatform,
+  modalLockAsset,
+  setModalVisible,
+  handleTransactionSuccess,
+  allocationModalVisible,
+  setAllocationModalVisible,
+  detailVisible,
+  setDetailVisible,
+  setSelectedHolding,
+  activeDetailHolding,
+  settingsVisible,
+  setSettingsVisible,
+  assets,
+  transactions,
+  handleDataResetOrImported,
+  isBackgroundBlocked,
+  isPolling,
+  assetRepo,
+  txRepo,
+  settingsRepo,
+}: AppContentProps) {
+  const { colors, isDark } = useTheme();
+
+  return (
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      {...edgeSwipeResponder.panHandlers}
+    >
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
+      />
 
       {/* Navigation Bar Header */}
-      <View style={styles.navBar}>
+      <View style={[styles.navBar, { backgroundColor: colors.background }]}>
         <TouchableOpacity
-          style={styles.menuButton}
+          style={[
+            styles.menuButton,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.cardBorder,
+            },
+          ]}
           onPress={() => setIsDrawerOpen(true)}
           activeOpacity={0.7}
         >
-          <MenuIcon size={20} color="#F8FAFC" />
+          <MenuIcon size={20} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Investment Tracker</Text>
+        <Text style={[styles.navTitle, { color: colors.textPrimary }]}>Investment Tracker</Text>
         <TouchableOpacity
-          style={styles.iconButton}
+          style={[
+            styles.iconButton,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.cardBorder,
+            },
+          ]}
           onPress={() => openAddModal('BUY')}
           activeOpacity={0.7}
         >
-          <BellIcon size={20} color="#F8FAFC" />
+          <BellIcon size={20} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -314,11 +495,15 @@ export default function App() {
               onTogglePrivacy={() => handleUpdateSettings({ privacyMode: !userSettings.privacyMode })}
             />
 
-            {/* Section Title (100% 匹配 01_home_screen.jpg) */}
+            {/* Section Title */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{t('nav.assets', currentLanguage)}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                {t('nav.assets', currentLanguage)}
+              </Text>
               <TouchableOpacity onPress={() => openAddModal('BUY')} activeOpacity={0.7}>
-                <Text style={styles.addLink}>{t('holdings.addLink', currentLanguage)}</Text>
+                <Text style={[styles.addLink, { color: colors.accent }]}>
+                  {t('holdings.addLink', currentLanguage)}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -332,9 +517,11 @@ export default function App() {
         initialSymbol={modalSymbol}
         initialPlatform={modalPlatform}
         lockAsset={modalLockAsset}
+        editingTransaction={editingTransaction}
+        onDeleteTransaction={handleDeleteTransaction}
         holdings={holdings}
         language={currentLanguage}
-        onClose={() => setModalVisible(false)}
+        onClose={handleCloseModal}
         onSuccess={handleTransactionSuccess}
         assetRepo={assetRepo}
         txRepo={txRepo}
@@ -361,6 +548,8 @@ export default function App() {
         onOpenAddTransaction={(type, symbol, platform) => {
           openAddModal(type, symbol, platform, true);
         }}
+        onOpenEditTransaction={openEditModal}
+        allTransactions={transactions}
         txRepo={txRepo}
         exchangeService={defaultExchangeService}
       />
@@ -390,6 +579,9 @@ export default function App() {
         onTogglePrivacy={() => handleUpdateSettings({ privacyMode: !userSettings.privacyMode })}
         language={currentLanguage}
         onLanguageChange={(nextLang) => handleUpdateSettings({ language: nextLang })}
+        themeMode={userSettings.theme}
+        onThemeChange={(mode) => handleUpdateSettings({ theme: mode })}
+        cloudUser={userSettings.cloudUser}
         onNavigateSettings={() => {
           setIsDrawerOpen(false);
           setSettingsVisible(true);

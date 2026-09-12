@@ -42,10 +42,12 @@ describe('i18n Internationalization Suite', () => {
   });
 
   it('translates navigation and drawer labels', () => {
-    expect(t('drawer.portfolioHome', 'zh')).toBe('投资组合总览');
-    expect(t('drawer.portfolioHome', 'en')).toBe('Portfolio Overview');
-    expect(t('drawer.settingsAndProfile', 'zh')).toBe('设置与偏好');
-    expect(t('drawer.settingsAndProfile', 'en')).toBe('Settings & Profile');
+    expect(t('drawer.portfolioHome', 'zh')).toBe('总览');
+    expect(t('drawer.portfolioHome', 'en')).toBe('Portfolio');
+    expect(t('drawer.settingsAndProfile', 'zh')).toBe('设置');
+    expect(t('drawer.settingsAndProfile', 'en')).toBe('Settings');
+    expect(t('drawer.baseCurrencyLabel', 'zh')).toBe('主法币');
+    expect(t('drawer.baseCurrencyLabel', 'en')).toBe('Base Currency');
   });
 
   it('translates total portfolio card labels', () => {

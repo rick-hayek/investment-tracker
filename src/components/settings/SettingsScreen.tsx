@@ -8,10 +8,9 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
-  TextInput,
   ActivityIndicator,
 } from 'react-native';
-import { CurrencyType, UserSettings, Asset, Transaction } from '../../domain/types';
+import { CurrencyType, UserSettings, Asset, Transaction, CloudUserInfo, ThemeMode } from '../../domain/types';
 import { CURRENCY_CONFIGS, getNextCurrency } from '../../domain/currency';
 import { defaultForexService, ForexRateInfo } from '../../services/forexService';
 import { DataExportService } from '../../services/dataExportService';
@@ -19,19 +18,21 @@ import { SettingsRepository } from '../../database/repositories/settingsReposito
 import { AssetRepository } from '../../database/repositories/assetRepository';
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
 import { LanguageType, t, getLanguageName } from '../../i18n';
+import { useTheme } from '../../theme';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  EditPencilIcon,
   BaseCurrencyIcon,
   LockIcon,
   MoonIcon,
+  SunIcon,
+  SystemMonitorIcon,
   GlobeIcon,
   ExportCsvIcon,
   CloudBackupIcon,
-  ExchangeMatrixIcon,
   UserAvatarIcon,
   TrashCanIcon,
+  ImportExportIcon,
 } from '../common/Icons';
 import { CustomAlertModal, AlertType, AlertButton } from '../common/CustomAlertModal';
 
@@ -60,16 +61,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   assetRepo,
   txRepo,
 }) => {
+  const { colors, isDark } = useTheme();
   const [forexInfo, setForexInfo] = useState<ForexRateInfo>(defaultForexService.getRateInfo());
   const [isRefreshingForex, setIsRefreshingForex] = useState(false);
 
-  // Backup & Import modal
-  const [backupModalVisible, setBackupModalVisible] = useState(false);
-  const [importModalVisible, setImportModalVisible] = useState(false);
-  const [importJsonText, setImportJsonText] = useState('');
+  // Backup & Import
+  const [importExportModalVisible, setImportExportModalVisible] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
 
-  // 自定义暗黑质感提示框状态
+  // 自定义提示框状态
   const [alertConfig, setAlertConfig] = useState<{
     visible: boolean;
     type: AlertType;
@@ -116,6 +116,39 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const lang = settings.language || 'zh';
 
+  // 主题图标与标签
+  const themeIcon = React.useMemo(() => {
+    switch (settings.theme) {
+      case 'light':
+        return <SunIcon size={20} color={colors.accent} />;
+      case 'system':
+        return <SystemMonitorIcon size={20} color={colors.accent} />;
+      case 'dark':
+      default:
+        return <MoonIcon size={20} color={colors.accent} />;
+    }
+  }, [settings.theme, colors.accent]);
+
+  const themeLabel = React.useMemo(() => {
+    switch (settings.theme) {
+      case 'light':
+        return t('settings.themeLight', lang);
+      case 'system':
+        return t('settings.themeSystem', lang);
+      case 'dark':
+      default:
+        return t('settings.themeDark', lang);
+    }
+  }, [settings.theme, lang]);
+
+  // 轮转切换外观主题 (dark -> light -> system -> dark)
+  const handleCycleTheme = () => {
+    const current = settings.theme || 'dark';
+    const next: ThemeMode =
+      current === 'dark' ? 'light' : current === 'light' ? 'system' : 'dark';
+    onUpdateSettings({ theme: next });
+  };
+
   // 切换语言
   const handleToggleLanguage = () => {
     const nextLang: LanguageType = lang === 'zh' ? 'en' : 'zh';
@@ -134,86 +167,172 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   // 导出 CSV 交易明细
+  // 导出 CSV 到本地文件并调起系统保存面板
   const handleExportCSV = async () => {
     if (transactions.length === 0) {
-      showAlert(t('common.error', lang), lang === 'zh' ? '暂无交易流水记录可导出。' : 'No transactions to export.', undefined, 'warning');
+      showAlert(
+        t('common.error', lang),
+        lang === 'zh' ? '暂无交易流水记录可导出。' : 'No transactions to export.',
+        undefined,
+        'warning'
+      );
       return;
     }
     const csvString = DataExportService.exportTransactionsToCSV(transactions, assets);
-    await DataExportService.shareContent('Investment_Transactions.csv', csvString);
+    await DataExportService.exportToFile('Investment_Transactions.csv', csvString, 'text/csv');
   };
 
-  // 导出 JSON 全量备份
+  // 导出 JSON 全量备份到本地文件并调起系统保存面板
   const handleExportJSON = async () => {
     const jsonString = DataExportService.exportToJSONBackup(assets, transactions, settings);
-    await DataExportService.shareContent('InvestmentTracker_Backup.json', jsonString);
+    await DataExportService.exportToFile('InvestmentTracker_Backup.json', jsonString, 'application/json');
   };
 
-  // 确认恢复导入 JSON
-  const handleConfirmImport = async () => {
-    if (!importJsonText.trim()) {
-      showAlert(t('common.error', lang), lang === 'zh' ? '请输入或粘贴 JSON 备份内容' : 'Please paste backup JSON content', undefined, 'warning');
+  // 从手机本地选取文件（支持 .csv 与 .json 自动识别）
+  const handleImportFile = async () => {
+    setImportExportModalVisible(false);
+    const pickResult = await DataExportService.pickAndReadFile('auto');
+    if (!pickResult.success || !pickResult.content) {
+      if (pickResult.error && pickResult.error !== '用户取消了选择') {
+        showAlert(
+          lang === 'zh' ? '文件选择失败' : 'File Selection Failed',
+          pickResult.error,
+          undefined,
+          'danger'
+        );
+      }
       return;
     }
 
-    const validation = DataExportService.validateAndParseJSONBackup(importJsonText);
-    if (!validation.success || !validation.data) {
+    const detected = DataExportService.detectAndValidateFile(pickResult.content, pickResult.filename);
+    const filename = pickResult.filename || (detected.format === 'json' ? 'backup.json' : 'transactions.csv');
+
+    if (detected.format === 'json') {
+      const validation = detected.jsonResult;
+      if (!validation || !validation.success || !validation.data) {
+        showAlert(
+          lang === 'zh' ? 'JSON 备份文件校验失败' : 'JSON Backup Validation Failed',
+          detected.error || validation?.error || (lang === 'zh' ? '备份文件格式不正确' : 'Invalid backup format'),
+          undefined,
+          'danger'
+        );
+        return;
+      }
+
+      const txCount = validation.data.transactions.length;
+      const assetCount = validation.data.assets.length;
+
       showAlert(
-        lang === 'zh' ? '导入失败' : 'Import Failed',
-        validation.error || (lang === 'zh' ? '备份文件格式不正确' : 'Invalid backup format'),
+        lang === 'zh' ? `确认从 ${filename} 恢复数据？` : `Restore from ${filename}?`,
+        lang === 'zh'
+          ? `检测到备份文件，包含 ${assetCount} 个资产和 ${txCount} 条交易记录。此操作将使用该备份覆盖当前数据库。`
+          : `Detected backup with ${assetCount} assets and ${txCount} transactions. This will overwrite current database.`,
+        [
+          { text: t('common.cancel', lang), style: 'cancel' },
+          {
+            text: t('common.confirm', lang),
+            style: 'destructive',
+            onPress: async () => {
+              setImportLoading(true);
+              try {
+                const existingAssets = await assetRepo.findAll();
+                for (const a of existingAssets) {
+                  await assetRepo.delete(a.id);
+                }
+                const existingTxs = await txRepo.findAll();
+                for (const t of existingTxs) {
+                  await txRepo.delete(t.id);
+                }
+
+                for (const a of validation.data!.assets) {
+                  await assetRepo.insert(a);
+                }
+                for (const t of validation.data!.transactions) {
+                  await txRepo.insert(t);
+                }
+
+                if (validation.data!.settings) {
+                  await settingsRepo.updateSettings(validation.data!.settings);
+                  onUpdateSettings(validation.data!.settings);
+                }
+
+                await onDataResetOrImported();
+                showAlert(
+                  t('common.success', lang),
+                  lang === 'zh'
+                    ? `已成功从 ${filename} 恢复数据！`
+                    : `Successfully restored database from ${filename}!`,
+                  undefined,
+                  'success'
+                );
+              } catch (err: any) {
+                showAlert(t('common.error', lang), err.message || 'Error restoring data', undefined, 'danger');
+              } finally {
+                setImportLoading(false);
+              }
+            },
+          },
+        ],
+        'warning'
+      );
+      return;
+    }
+
+    // CSV 格式解析与处理
+    const validation = detected.csvResult;
+    if (!validation || !validation.success || !validation.data) {
+      showAlert(
+        lang === 'zh' ? '文件校验失败' : 'File Validation Failed',
+        detected.error || validation?.error || (lang === 'zh' ? '文件格式不正确，无法识别为有效交易明细或备份文件' : 'Invalid file format'),
         undefined,
         'danger'
       );
       return;
     }
 
+    const txCount = validation.data.transactions.length;
+    const assetCount = validation.data.assets.length;
+
     showAlert(
-      lang === 'zh' ? '确认恢复备份？' : 'Confirm Restore Backup?',
+      lang === 'zh' ? `确认导入文件: ${filename}？` : `Import File: ${filename}?`,
       lang === 'zh'
-        ? `检测到 ${validation.data.assets.length} 个资产和 ${validation.data.transactions.length} 条交易记录。恢复操作将覆盖现有记录。`
-        : `Found ${validation.data.assets.length} assets and ${validation.data.transactions.length} transactions. This will overwrite current data.`,
+        ? `从文件解析出 ${assetCount} 个资产种类和 ${txCount} 条交易记录。将合并录入至您的本地投资组合中。`
+        : `Parsed ${assetCount} assets and ${txCount} transactions from file. These will be added to your portfolio.`,
       [
         { text: t('common.cancel', lang), style: 'cancel' },
         {
           text: t('common.confirm', lang),
-          style: 'destructive',
+          style: 'default',
           onPress: async () => {
             setImportLoading(true);
             try {
-              const existingAssets = await assetRepo.findAll();
-              for (const a of existingAssets) {
-                await assetRepo.delete(a.id);
-              }
-              const existingTxs = await txRepo.findAll();
-              for (const t of existingTxs) {
-                await txRepo.delete(t.id);
-              }
-
               for (const a of validation.data!.assets) {
-                await assetRepo.insert(a);
+                const existing = await assetRepo.findById(a.id);
+                if (!existing) {
+                  await assetRepo.insert(a);
+                }
               }
               for (const t of validation.data!.transactions) {
                 await txRepo.insert(t);
               }
-
-              if (validation.data!.settings) {
-                await settingsRepo.updateSettings(validation.data!.settings);
-                onUpdateSettings(validation.data!.settings);
-              }
-
               await onDataResetOrImported();
-              setImportModalVisible(false);
-              setImportJsonText('');
-              showAlert(t('common.success', lang), t('settings.restoreSuccess', lang), undefined, 'success');
+              showAlert(
+                t('common.success', lang),
+                lang === 'zh'
+                  ? `成功从 ${filename} 导入 ${txCount} 条交易记录！`
+                  : `Successfully imported ${txCount} transactions from ${filename}!`,
+                undefined,
+                'success'
+              );
             } catch (err: any) {
-              showAlert(t('common.error', lang), err.message || 'Error restoring data', undefined, 'danger');
+              showAlert(t('common.error', lang), err.message || 'Error importing CSV data', undefined, 'danger');
             } finally {
               setImportLoading(false);
             }
           },
         },
       ],
-      'warning'
+      'info'
     );
   };
 
@@ -233,6 +352,74 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       showAlert(t('common.error', lang), t('settings.rateUpdateFailed', lang), undefined, 'danger');
     } finally {
       setIsRefreshingForex(false);
+    }
+  };
+
+  // 点击云端同步 (Google Drive 授权登录与状态管理)
+  const handlePressCloudSync = () => {
+    if (settings.cloudUser) {
+      showAlert(
+        t('settings.cloudSyncPlaceholderTitle', lang),
+        `${t('settings.cloudSyncConnected', lang).replace('{email}', settings.cloudUser.email)}`,
+        [
+          { text: t('common.cancel', lang), style: 'cancel' },
+          {
+            text: t('settings.cloudSyncNow', lang),
+            style: 'default',
+            onPress: () => {
+              showAlert(
+                t('common.success', lang),
+                t('settings.cloudSyncSuccess', lang),
+                undefined,
+                'success'
+              );
+            },
+          },
+          {
+            text: t('settings.cloudSyncDisconnect', lang),
+            style: 'destructive',
+            onPress: async () => {
+              await onUpdateSettings({ cloudUser: null });
+              showAlert(
+                t('common.success', lang),
+                t('settings.cloudSyncDisconnectedSuccess', lang),
+                undefined,
+                'info'
+              );
+            },
+          },
+        ],
+        'info'
+      );
+    } else {
+      showAlert(
+        t('settings.cloudSyncPlaceholderTitle', lang),
+        t('settings.cloudSyncNotConnected', lang),
+        [
+          { text: t('common.cancel', lang), style: 'cancel' },
+          {
+            text: t('settings.cloudSyncConnectGoogle', lang),
+            style: 'default',
+            onPress: async () => {
+              const mockGoogleUser: CloudUserInfo = {
+                email: 'rick.investor@gmail.com',
+                name: 'Rick',
+                connectedAt: Date.now(),
+              };
+              await onUpdateSettings({ cloudUser: mockGoogleUser });
+              showAlert(
+                t('common.success', lang),
+                lang === 'zh'
+                  ? '已成功登录 Google 账号！已开启 Google Drive 云端同步，并在顶部显示您的账户信息。'
+                  : 'Successfully connected Google Drive! Cloud sync enabled and profile is now displayed.',
+                undefined,
+                'success'
+              );
+            },
+          },
+        ],
+        'info'
+      );
     }
   };
 
@@ -267,175 +454,162 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <SafeAreaView style={styles.safeContainer}>
+      <SafeAreaView style={[styles.safeContainer, { backgroundColor: colors.background }]}>
         {/* 顶部导航栏 */}
         <View style={styles.navBar}>
           <TouchableOpacity style={styles.backBtn} onPress={onClose} activeOpacity={0.7}>
-            <ChevronLeftIcon size={22} color="#F8FAFC" />
+            <ChevronLeftIcon size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.navTitle}>{t('drawer.settingsAndProfile', lang)}</Text>
+          <Text style={[styles.navTitle, { color: colors.textPrimary }]}>{t('drawer.settingsAndProfile', lang)}</Text>
           <View style={styles.navRightPlaceholder} />
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-          {/* 用户资料主卡片 (100% 还原设计图暗黑蓝光玻璃质感) */}
-          <View style={styles.profileCard}>
-            <View style={styles.avatarWrapper}>
-              <UserAvatarIcon size={32} color="#94A3B8" />
-            </View>
-            <View style={styles.profileInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.userName}>Rick H.</Text>
-                <View style={styles.proBadge}>
-                  <Text style={styles.proBadgeText}>PRO</Text>
-                </View>
+          {/* 用户只有在云端同步登录 Google Drive 之后才在原来位置显示用户信息 */}
+          {settings.cloudUser ? (
+            <View style={[styles.profileCard, { backgroundColor: colors.cardBackgroundSecondary, borderColor: colors.cardBorder }]}>
+              <View style={styles.avatarWrapper}>
+                <UserAvatarIcon size={28} color={colors.accent} />
               </View>
-              <Text style={styles.userEmail}>rickh.invests@email.com</Text>
+              <View style={styles.profileInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={[styles.userName, { color: colors.textPrimary }]}>
+                    {settings.cloudUser.name || settings.cloudUser.email}
+                  </Text>
+                  <View style={styles.googleBadge}>
+                    <Text style={styles.googleBadgeText}>Google Drive</Text>
+                  </View>
+                </View>
+                <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{settings.cloudUser.email}</Text>
+              </View>
             </View>
-            <TouchableOpacity
-              style={styles.profileEditBtn}
-              onPress={() => showAlert(t('settings.editProfile', lang), lang === 'zh' ? '个人资料编辑功能开发中' : 'Profile edit feature coming soon', undefined, 'info')}
-              activeOpacity={0.7}
-            >
-              <EditPencilIcon size={16} color="#94A3B8" />
-            </TouchableOpacity>
-          </View>
+          ) : null}
+
+          {/* Todo: 暂时隐藏了所有通用设置项 */}
 
           {/* Section 1: Preferences */}
-          <Text style={styles.sectionTitle}>{t('settings.preferences', lang)}</Text>
-          <View style={styles.cardGroup}>
-            {/* Base Currency */}
-            <TouchableOpacity style={styles.rowItem} onPress={handleCycleCurrency} activeOpacity={0.7}>
+          {/* <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('settings.preferences', lang)}</Text> */}
+          {/* <View style={[styles.cardGroup, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}> */}
+          {/* Base Currency */}
+          {/* <TouchableOpacity style={styles.rowItem} onPress={handleCycleCurrency} activeOpacity={0.7}>
               <View style={styles.rowLeft}>
                 <View style={styles.iconContainer}>
-                  <BaseCurrencyIcon size={20} color="#94A3B8" />
+                  <BaseCurrencyIcon size={20} color={colors.textSecondary} />
                 </View>
-                <Text style={styles.rowTitle}>{t('settings.baseCurrency', lang)}</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{t('settings.baseCurrency', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
-                <Text style={styles.rowRightValue}>
+                <Text style={[styles.rowRightValue, { color: colors.textSecondary }]}>
                   {settings.baseCurrency} ({CURRENCY_CONFIGS[settings.baseCurrency]?.symbol})
                 </Text>
-                <ChevronRightIcon size={16} color="#64748B" />
+                <ChevronRightIcon size={16} color={colors.textMuted} />
               </View>
             </TouchableOpacity>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} /> */}
 
-            {/* Privacy Mode */}
-            <View style={styles.rowItem}>
+          {/* Privacy Mode */}
+          {/* <View style={styles.rowItem}>
               <View style={styles.rowLeft}>
                 <View style={styles.iconContainer}>
-                  <LockIcon size={20} color="#94A3B8" />
+                  <LockIcon size={20} color={colors.textSecondary} />
                 </View>
                 <View>
-                  <Text style={styles.rowTitle}>{t('settings.privacyMode', lang)}</Text>
-                  <Text style={styles.rowSubtitle}>{t('settings.privacyModeSubtitle', lang)}</Text>
+                  <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{t('settings.privacyMode', lang)}</Text>
+                  <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>{t('settings.privacyModeSubtitle', lang)}</Text>
                 </View>
               </View>
               <View style={styles.switchWrapper}>
                 <Switch
                   value={settings.privacyMode}
                   onValueChange={handleTogglePrivacy}
-                  trackColor={{ false: '#334155', true: '#10B981' }}
+                  trackColor={{ false: isDark ? '#334155' : '#CBD5E1', true: colors.gain }}
                   thumbColor="#F8FAFC"
                 />
               </View>
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} /> */}
 
-            {/* Language / 语言切换 */}
-            <TouchableOpacity style={styles.rowItem} onPress={handleToggleLanguage} activeOpacity={0.7}>
+          {/* Language / 语言切换 */}
+          {/* <TouchableOpacity style={styles.rowItem} onPress={handleToggleLanguage} activeOpacity={0.7}>
               <View style={styles.rowLeft}>
                 <View style={styles.iconContainer}>
-                  <GlobeIcon size={20} color="#94A3B8" />
+                  <GlobeIcon size={20} color={colors.textSecondary} />
                 </View>
-                <Text style={styles.rowTitle}>{t('settings.language', lang)}</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{t('settings.language', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
-                <Text style={styles.rowRightValue}>{getLanguageName(lang)}</Text>
-                <ChevronRightIcon size={16} color="#64748B" />
+                <Text style={[styles.rowRightValue, { color: colors.textSecondary }]}>{getLanguageName(lang)}</Text>
+                <ChevronRightIcon size={16} color={colors.textMuted} />
               </View>
             </TouchableOpacity>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} /> */}
 
-            {/* Theme */}
-            <TouchableOpacity
+          {/* Theme / 主题模式 (Dark -> Light -> System -> Dark) */}
+          {/* <TouchableOpacity
               style={styles.rowItem}
-              onPress={() => showAlert(t('settings.theme', lang), lang === 'zh' ? '当前为原生极简深黑模式 (Dark Mode)' : 'Currently using Dark Mode', undefined, 'info')}
+              onPress={handleCycleTheme}
               activeOpacity={0.7}
             >
               <View style={styles.rowLeft}>
                 <View style={styles.iconContainer}>
-                  <MoonIcon size={20} color="#94A3B8" />
+                  {themeIcon}
                 </View>
-                <Text style={styles.rowTitle}>{t('settings.theme', lang)}</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{t('settings.theme', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
-                <Text style={styles.rowRightValue}>{t('settings.themeDark', lang)}</Text>
-                <ChevronRightIcon size={16} color="#64748B" />
+                <Text style={[styles.rowRightValue, { color: colors.textSecondary }]}>{themeLabel}</Text>
+                <ChevronRightIcon size={16} color={colors.textMuted} />
               </View>
-            </TouchableOpacity>
-          </View>
+            </TouchableOpacity> */}
+          {/* </View> */}
 
-          {/* Section 2: Exchanges & Data */}
-          <Text style={styles.sectionTitle}>{t('settings.exchangesAndData', lang)}</Text>
-          <View style={styles.cardGroup}>
-            {/* Connected Exchanges */}
+          {/* Section 2: Data Management */}
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('settings.dataManagement', lang)}</Text>
+          <View style={[styles.cardGroup, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            {/* 导入导出 (CSV / JSON) */}
             <TouchableOpacity
               style={styles.rowItem}
-              onPress={() => showAlert(t('settings.connectedExchanges', lang), lang === 'zh' ? '已连接市场数据通道: OKX, Binance, Coinbase, CoinGecko' : 'Connected channels: OKX, Binance, Coinbase, CoinGecko', undefined, 'info')}
+              onPress={() => setImportExportModalVisible(true)}
               activeOpacity={0.7}
             >
               <View style={styles.rowLeft}>
                 <View style={styles.iconContainer}>
-                  <ExchangeMatrixIcon size={20} />
+                  <ImportExportIcon size={20} color={colors.textSecondary} />
                 </View>
-                <Text style={styles.rowTitle}>{t('settings.connectedExchanges', lang)}</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{t('settings.importExport', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
-                <Text style={styles.rowRightValue}>OKX, Binance</Text>
-                <ChevronRightIcon size={16} color="#64748B" />
+                <Text style={[styles.rowRightValue, { color: colors.textSecondary }]}>CSV, JSON</Text>
+                <ChevronRightIcon size={16} color={colors.textMuted} />
               </View>
             </TouchableOpacity>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
-            {/* Export Transactions (.CSV) */}
-            <TouchableOpacity style={styles.rowItem} onPress={handleExportCSV} activeOpacity={0.7}>
-              <View style={styles.rowLeft}>
-                <View style={styles.iconContainer}>
-                  <ExportCsvIcon size={20} color="#94A3B8" />
-                </View>
-                <Text style={styles.rowTitle}>{t('settings.exportCsv', lang)}</Text>
-              </View>
-              <View style={styles.rowRight}>
-                <ChevronRightIcon size={16} color="#64748B" />
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            {/* Cloud Backup / Backup & Restore */}
+            {/* 云端同步 (Google Drive 授权登录与状态管理) */}
             <TouchableOpacity
               style={styles.rowItem}
-              onPress={() => setBackupModalVisible(true)}
+              onPress={handlePressCloudSync}
               activeOpacity={0.7}
             >
               <View style={styles.rowLeft}>
                 <View style={styles.iconContainer}>
-                  <CloudBackupIcon size={20} color="#94A3B8" />
+                  <CloudBackupIcon size={20} color={settings.cloudUser ? colors.accent : colors.textSecondary} />
                 </View>
-                <Text style={styles.rowTitle}>{t('settings.cloudBackup', lang)}</Text>
+                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{t('settings.cloudSync', lang)}</Text>
               </View>
               <View style={styles.rowRight}>
-                <ChevronRightIcon size={16} color="#64748B" />
+                <Text style={[styles.rowRightValue, { color: settings.cloudUser ? colors.accent : colors.textSecondary }]}>
+                  {settings.cloudUser ? settings.cloudUser.email : 'Google Drive'}
+                </Text>
+                <ChevronRightIcon size={16} color={colors.textMuted} />
               </View>
             </TouchableOpacity>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
             {/* Clear All Data */}
             <TouchableOpacity
@@ -444,43 +618,43 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               activeOpacity={0.7}
             >
               <View style={styles.rowLeft}>
-                <View style={[styles.iconContainer, styles.dangerIconContainer]}>
-                  <TrashCanIcon size={20} color="#EF4444" />
+                <View style={[styles.iconContainer, styles.dangerIconContainer, { backgroundColor: colors.dangerContainer }]}>
+                  <TrashCanIcon size={20} color={colors.dangerText} />
                 </View>
                 <View>
-                  <Text style={[styles.rowTitle, styles.dangerTitle]}>{t('settings.clearData', lang)}</Text>
-                  <Text style={styles.rowSubtitle}>{t('settings.clearDataSubtitle', lang)}</Text>
+                  <Text style={[styles.rowTitle, styles.dangerTitle, { color: colors.dangerText }]}>{t('settings.clearData', lang)}</Text>
+                  <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>{t('settings.clearDataSubtitle', lang)}</Text>
                 </View>
               </View>
               <View style={styles.rowRight}>
-                <ChevronRightIcon size={16} color="#EF4444" />
+                <ChevronRightIcon size={16} color={colors.dangerText} />
               </View>
             </TouchableOpacity>
           </View>
 
           {/* Section 3: Forex Rates Info & Refresh */}
-          <Text style={styles.sectionTitle}>{t('settings.forexRates', lang)}</Text>
-          <View style={styles.cardGroup}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('settings.forexRates', lang)}</Text>
+          <View style={[styles.cardGroup, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
             <View style={styles.forexRow}>
               <View style={styles.forexItem}>
-                <Text style={styles.forexTag}>USD / CNY</Text>
-                <Text style={styles.forexValue}>¥{forexInfo.rates.CNY.toFixed(2)}</Text>
+                <Text style={[styles.forexTag, { color: colors.textMuted }]}>USD / CNY</Text>
+                <Text style={[styles.forexValue, { color: colors.textPrimary }]}>¥{forexInfo.rates.CNY.toFixed(2)}</Text>
               </View>
-              <View style={styles.forexDivider} />
+              <View style={[styles.forexDivider, { backgroundColor: colors.divider }]} />
               <View style={styles.forexItem}>
-                <Text style={styles.forexTag}>USD / EUR</Text>
-                <Text style={styles.forexValue}>€{forexInfo.rates.EUR.toFixed(2)}</Text>
+                <Text style={[styles.forexTag, { color: colors.textMuted }]}>USD / EUR</Text>
+                <Text style={[styles.forexValue, { color: colors.textPrimary }]}>€{forexInfo.rates.EUR.toFixed(2)}</Text>
               </View>
-              <View style={styles.forexDivider} />
+              <View style={[styles.forexDivider, { backgroundColor: colors.divider }]} />
               <TouchableOpacity
-                style={styles.refreshBtn}
+                style={[styles.refreshBtn, { backgroundColor: colors.accentLight }]}
                 onPress={handleRefreshForex}
                 disabled={isRefreshingForex}
               >
                 {isRefreshingForex ? (
-                  <ActivityIndicator size="small" color="#38BDF8" />
+                  <ActivityIndicator size="small" color={colors.accent} />
                 ) : (
-                  <Text style={styles.refreshBtnText}>{t('settings.updateRates', lang)}</Text>
+                  <Text style={[styles.refreshBtnText, { color: colors.accent }]}>{t('settings.updateRates', lang)}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -489,103 +663,82 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <View style={styles.bottomSpacer} />
         </ScrollView>
 
-        {/* 备份与还原快捷操作弹窗 */}
+        {/* 数据导入导出快捷操作面板 (支持 CSV 与 JSON) */}
         <Modal
-          visible={backupModalVisible}
+          visible={importExportModalVisible}
           animationType="fade"
           transparent={true}
-          onRequestClose={() => setBackupModalVisible(false)}
+          onRequestClose={() => setImportExportModalVisible(false)}
         >
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalDialog}>
-              <Text style={styles.dialogTitle}>{t('settings.backupModalTitle', lang)}</Text>
-              <Text style={styles.dialogDesc}>
-                {t('settings.backupModalDesc', lang)}
+          <View style={[styles.modalBackdrop, { backgroundColor: colors.modalOverlay }]}>
+            <View style={[styles.modalDialog, { backgroundColor: colors.modalBackground, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.dialogTitle, { color: colors.textPrimary }]}>{t('settings.importExportModalTitle', lang)}</Text>
+              <Text style={[styles.dialogDesc, { color: colors.textSecondary }]}>
+                {t('settings.importExportModalDesc', lang)}
               </Text>
 
-              <TouchableOpacity
-                style={styles.actionBtnPrimary}
-                onPress={async () => {
-                  setBackupModalVisible(false);
-                  await handleExportJSON();
-                }}
-              >
-                <Text style={styles.actionBtnText}>{t('settings.exportJsonBtn', lang)}</Text>
-              </TouchableOpacity>
+              {/* 导出数据分区 */}
+              <Text style={[styles.dialogSectionLabel, { color: colors.textMuted }]}>{t('settings.exportSection', lang)}</Text>
+              <View style={styles.actionBtnsRow}>
+                <TouchableOpacity
+                  style={[styles.actionTileBtn, { backgroundColor: colors.actionTileBackground, borderColor: colors.actionTileBorder }]}
+                  onPress={async () => {
+                    setImportExportModalVisible(false);
+                    await handleExportCSV();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.actionTileTitle, { color: colors.textPrimary }]}>{t('settings.exportCsvBtn', lang)}</Text>
+                  <Text style={[styles.actionTileSubtitle, { color: colors.textSecondary }]}>.CSV</Text>
+                </TouchableOpacity>
 
+                <TouchableOpacity
+                  style={[styles.actionTileBtn, { backgroundColor: colors.actionTileBackground, borderColor: colors.actionTileBorder }]}
+                  onPress={async () => {
+                    setImportExportModalVisible(false);
+                    await handleExportJSON();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.actionTileTitle, { color: colors.textPrimary }]}>{t('settings.exportJsonBtn', lang)}</Text>
+                  <Text style={[styles.actionTileSubtitle, { color: colors.textSecondary }]}>.JSON</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 导入数据分区 */}
+              <Text style={[styles.dialogSectionLabel, { color: colors.textMuted }]}>{t('settings.importSection', lang)}</Text>
               <TouchableOpacity
-                style={styles.actionBtnSecondary}
-                onPress={() => {
-                  setBackupModalVisible(false);
-                  setImportModalVisible(true);
+                style={[styles.actionFullTileBtn, { backgroundColor: colors.actionTileBackground, borderColor: colors.actionTileBorder }]}
+                onPress={async () => {
+                  setImportExportModalVisible(false);
+                  await handleImportFile();
                 }}
+                activeOpacity={0.7}
               >
-                <Text style={styles.actionBtnSecondaryText}>{t('settings.importJsonBtn', lang)}</Text>
+                <Text style={[styles.actionTileTitle, { color: colors.textPrimary }]}>{t('settings.importFileBtn', lang)}</Text>
+                <Text style={[styles.actionTileSubtitle, { color: colors.textSecondary }]}>{t('settings.importFileSubtitle', lang)}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.dialogCancelBtn}
-                onPress={() => setBackupModalVisible(false)}
+                onPress={() => setImportExportModalVisible(false)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.dialogCancelText}>{t('common.cancel', lang)}</Text>
+                <Text style={[styles.dialogCancelText, { color: colors.textSecondary }]}>{t('common.cancel', lang)}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
 
-        {/* JSON 导入弹窗 */}
-        <Modal
-          visible={importModalVisible}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => setImportModalVisible(false)}
-        >
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalDialog}>
-              <Text style={styles.dialogTitle}>{t('settings.importModalTitle', lang)}</Text>
-              <Text style={styles.dialogDesc}>
-                {t('settings.importModalDesc', lang)}
-              </Text>
-
-              <TextInput
-                style={styles.dialogInput}
-                placeholder={t('settings.importPlaceholder', lang)}
-                placeholderTextColor="#64748B"
-                multiline
-                numberOfLines={7}
-                value={importJsonText}
-                onChangeText={setImportJsonText}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              <View style={styles.dialogButtonsRow}>
-                <TouchableOpacity
-                  style={styles.dialogCancelBtnSmall}
-                  onPress={() => {
-                    setImportModalVisible(false);
-                    setImportJsonText('');
-                  }}
-                  disabled={importLoading}
-                >
-                  <Text style={styles.dialogCancelText}>{t('common.cancel', lang)}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.dialogConfirmBtn, importLoading && styles.btnDisabled]}
-                  onPress={handleConfirmImport}
-                  disabled={importLoading}
-                >
-                  {importLoading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.dialogConfirmText}>{t('settings.validateAndRestore', lang)}</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
+        {/* 数据导入中遮罩 */}
+        {importLoading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#38BDF8" />
+            <Text style={styles.loadingText}>
+              {lang === 'zh' ? '正在处理数据导入...' : 'Importing data...'}
+            </Text>
           </View>
-        </Modal>
+        )}
 
         {/* 自定义暗黑质感提示框 */}
         <CustomAlertModal
@@ -629,16 +782,6 @@ const styles = StyleSheet.create({
   navRightPlaceholder: {
     width: 36,
     height: 36,
-  },
-  profileEditBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   content: {
     flex: 1,
@@ -687,20 +830,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#F8FAFC',
   },
-  proBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.22)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  proBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#60A5FA',
-  },
   userEmail: {
     fontSize: 13,
     color: '#94A3B8',
+  },
+  googleBadge: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  googleBadgeText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 16,
@@ -765,6 +909,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
     fontWeight: '500',
+  },
+  connectedText: {
+    color: '#38BDF8',
   },
   switchWrapper: {
     transform: [{ scale: 0.85 }],
@@ -851,63 +998,78 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  actionBtnSecondary: {
+  dialogSectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  actionBtnsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+  },
+  actionTileBtn: {
+    flex: 1,
     backgroundColor: '#1E293B',
     borderRadius: 12,
     paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  actionBtnSecondaryText: {
-    color: '#F8FAFC',
-    fontSize: 14,
+  actionTileBtnPrimary: {
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+  },
+  actionTileTitle: {
+    fontSize: 13,
     fontWeight: '600',
+    color: '#F8FAFC',
+    textAlign: 'center',
+  },
+  actionTileSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  actionFullTileBtn: {
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: 8,
   },
   dialogCancelBtn: {
     paddingVertical: 10,
     alignItems: 'center',
-  },
-  dialogCancelBtnSmall: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#1E293B',
   },
   dialogCancelText: {
     color: '#94A3B8',
     fontSize: 14,
     fontWeight: '600',
   },
-  dialogInput: {
-    backgroundColor: '#090D16',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#334155',
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(9, 13, 22, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  loadingText: {
     color: '#F8FAFC',
-    padding: 12,
-    fontSize: 12,
-    fontFamily: 'monospace',
-    height: 140,
-    textAlignVertical: 'top',
-    marginBottom: 16,
-  },
-  dialogButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  dialogConfirmBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#3B82F6',
-  },
-  dialogConfirmText: {
-    color: '#FFFFFF',
+    marginTop: 12,
     fontSize: 14,
-    fontWeight: '600',
-  },
-  btnDisabled: {
-    opacity: 0.6,
+    fontWeight: '500',
   },
 });

@@ -113,4 +113,73 @@ describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)'
       expect(corruptedResult.error).toContain('资产数据损坏');
     });
   });
+
+  describe('parseTransactionsFromCSV', () => {
+    it('成功解析导出的标准 CSV 文本并还原交易记录与资产项', () => {
+      const csv = DataExportService.exportTransactionsToCSV(mockTransactions, mockAssets);
+      const parsed = DataExportService.parseTransactionsFromCSV(csv);
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.count).toBe(2);
+      expect(parsed.data?.assets.length).toBe(2);
+      expect(parsed.data?.transactions.length).toBe(2);
+
+      const btcTx = parsed.data?.transactions.find((t) => t.amount === 0.5);
+      expect(btcTx).toBeDefined();
+      expect(btcTx?.type).toBe('BUY');
+      expect(btcTx?.price).toBe(60000);
+      expect(btcTx?.platform).toBe('Binance');
+      expect(btcTx?.notes).toBe('首次建仓,分批挂单');
+    });
+
+    it('解析非标准表头但包含关键字段的 CSV 记录', () => {
+      const customCSV = `Coin,Side,Qty,Rate,Exchange\nSOL,BUY,10,145.5,Manual\n`;
+      const parsed = DataExportService.parseTransactionsFromCSV(customCSV);
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.count).toBe(1);
+      expect(parsed.data?.assets[0].symbol).toBe('SOL');
+      expect(parsed.data?.transactions[0].type).toBe('BUY');
+      expect(parsed.data?.transactions[0].amount).toBe(10);
+      expect(parsed.data?.transactions[0].price).toBe(145.5);
+    });
+
+    it('对空输入或缺失必要列的 CSV 报错', () => {
+      expect(DataExportService.parseTransactionsFromCSV('').success).toBe(false);
+      expect(DataExportService.parseTransactionsFromCSV('Symbol,Amount\nBTC,1').success).toBe(false);
+      expect(DataExportService.parseTransactionsFromCSV('Symbol,Type,Amount,Price\nBTC,UNKNOWN,1,100').success).toBe(false);
+    });
+  });
+
+  describe('detectAndValidateFile', () => {
+    it('自动识别并正确校验 JSON 备份文件', () => {
+      const jsonContent = DataExportService.exportToJSONBackup(mockAssets, mockTransactions, {
+        baseCurrency: 'USD',
+        language: 'zh',
+        privacyMode: false,
+        appSwitcherBlur: true,
+        theme: 'dark',
+      });
+
+      const result = DataExportService.detectAndValidateFile(jsonContent, 'my_backup.json');
+      expect(result.format).toBe('json');
+      expect(result.jsonResult?.success).toBe(true);
+      expect(result.jsonResult?.data?.assets.length).toBe(2);
+      expect(result.jsonResult?.data?.transactions.length).toBe(2);
+    });
+
+    it('自动识别并正确解析 CSV 交易明细文件', () => {
+      const csvContent = DataExportService.exportTransactionsToCSV(mockTransactions, mockAssets);
+
+      const result = DataExportService.detectAndValidateFile(csvContent, 'transactions.csv');
+      expect(result.format).toBe('csv');
+      expect(result.csvResult?.success).toBe(true);
+      expect(result.csvResult?.count).toBe(2);
+    });
+
+    it('对既不是合规 CSV 也不是合规 JSON 的内容返回错误', () => {
+      const result = DataExportService.detectAndValidateFile('Hello World random binary data', 'unknown.bin');
+      expect(result.error).toBeDefined();
+    });
+  });
 });

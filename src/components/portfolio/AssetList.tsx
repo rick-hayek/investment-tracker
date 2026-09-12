@@ -14,6 +14,7 @@ import { LanguageType, t } from '../../i18n';
 
 import { BtcLogo, EthLogo, SolLogo } from '../common/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../../theme';
 
 export interface AssetListProps {
   holdings: AssetHolding[];
@@ -38,14 +39,16 @@ export const AssetList: React.FC<AssetListProps> = ({
   onPressAdd,
   ListHeaderComponent,
 }) => {
+  const { colors, isDark } = useTheme();
+
   const renderLogo = (symbol: string) => {
     switch (symbol.toUpperCase()) {
       case 'BTC':
-        return <BtcLogo size={34} />;
+        return <BtcLogo size={32} />;
       case 'ETH':
-        return <EthLogo size={34} />;
+        return <EthLogo size={32} />;
       case 'SOL':
-        return <SolLogo size={34} />;
+        return <SolLogo size={32} />;
       default: {
         const meta = KNOWN_ASSETS[symbol];
         const iconBg = meta ? meta.color : '#3B82F6';
@@ -68,34 +71,34 @@ export const AssetList: React.FC<AssetListProps> = ({
         activeOpacity={0.7}
       >
         <LinearGradient
-          colors={['#27354B', '#131A28']}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={styles.assetCard}
+          colors={isDark ? ['#1E2638', '#0F1522'] : ['#FFFFFF', '#F8FAFC']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0.7 }}
+          style={[styles.assetCard, { borderColor: colors.cardBorder }]}
         >
           <View style={styles.assetLeft}>
             {renderLogo(item.symbol)}
             <View style={styles.nameContainer}>
               <View style={styles.assetTitleRow}>
-                <Text style={styles.assetName}>{item.name}</Text>
+                <Text style={[styles.assetName, { color: colors.textPrimary }]}>{item.name}</Text>
                 {item.platform && (
-                  <View style={styles.platformBadge}>
-                    <Text style={styles.platformBadgeText}>{item.platform}</Text>
+                  <View style={[styles.platformBadge, { backgroundColor: colors.accentLight }]}>
+                    <Text style={[styles.platformBadgeText, { color: colors.accent }]}>{item.platform}</Text>
                   </View>
                 )}
               </View>
-              <Text style={styles.assetSub}>
+              <Text style={[styles.assetSub, { color: colors.textSecondary }]}>
                 {item.symbol} • {privacyMode ? '••••' : item.totalQuantity}
               </Text>
             </View>
           </View>
 
           <View style={styles.assetRight}>
-            <Text style={styles.assetValue}>
+            <Text style={[styles.assetValue, { color: colors.textPrimary }]}>
               {formatCurrencyValue(item.marketValue, currency, { privacyMode })}
             </Text>
             <View style={styles.rightBottomRow}>
-              <Text style={isHoldingPositive ? styles.pnlGreen : styles.pnlRed}>
+              <Text style={isHoldingPositive ? [styles.pnlGreen, { color: colors.gain }] : [styles.pnlRed, { color: colors.loss }]}>
                 {privacyMode
                   ? '•••••• (••%)'
                   : `${isHoldingPositive ? '+' : '-'}${formatCurrencyValue(
@@ -111,8 +114,8 @@ export const AssetList: React.FC<AssetListProps> = ({
   };
 
   const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>{t('holdings.emptyText', language)}</Text>
+    <View style={[styles.emptyContainer, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('holdings.emptyText', language)}</Text>
     </View>
   );
 
@@ -128,7 +131,7 @@ export const AssetList: React.FC<AssetListProps> = ({
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor="#38BDF8"
+          tintColor={colors.accent}
         />
       }
     />
@@ -159,14 +162,14 @@ const styles = StyleSheet.create({
   },
   cardTouchable: {
     marginBottom: 8,
-    borderRadius: 16,
+    borderRadius: 15,
   },
   assetCard: {
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 16,
-    paddingVertical: 11,
-    paddingHorizontal: 16,
+    borderColor: '#334155',
+    borderRadius: 15,
+    paddingVertical: 8.5,
+    paddingHorizontal: 15,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -175,7 +178,7 @@ const styles = StyleSheet.create({
   assetLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 11,
   },
   assetTitleRow: {
     flexDirection: 'row',
@@ -183,15 +186,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   coinIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
   coinIconText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   assetName: {
@@ -200,25 +203,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   platformBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    paddingHorizontal: 6,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    paddingHorizontal: 5,
     paddingVertical: 1,
-    borderRadius: 6,
+    borderRadius: 5,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.4)',
+    borderColor: 'rgba(56, 189, 248, 0.22)',
   },
   platformBadgeText: {
-    color: '#60A5FA',
-    fontSize: 10,
+    color: '#38BDF8',
+    fontSize: 9.5,
     fontWeight: '700',
   },
   assetSub: {
     color: '#94A3B8',
-    fontSize: 12,
+    fontSize: 11.5,
     marginTop: 1,
   },
   nameContainer: {
-    marginLeft: 2,
+    marginLeft: 1,
   },
   assetRight: {
     alignItems: 'flex-end',
@@ -227,21 +230,21 @@ const styles = StyleSheet.create({
   rightBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: 1.5,
   },
   assetValue: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: '700',
   },
   pnlGreen: {
     color: '#10B981',
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
   },
   pnlRed: {
     color: '#EF4444',
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
   },
 });

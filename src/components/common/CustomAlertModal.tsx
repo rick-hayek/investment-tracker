@@ -8,6 +8,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { AlertTriangleIcon, CheckCircleIcon, TrashCanIcon } from './Icons';
+import { useTheme } from '../../theme';
 
 export type AlertType = 'danger' | 'warning' | 'success' | 'info';
 
@@ -34,6 +35,7 @@ export const CustomAlertModal: React.FC<CustomAlertModalProps> = ({
   buttons,
   onClose,
 }) => {
+  const { colors, isDark } = useTheme();
   const activeButtons: AlertButton[] =
     buttons && buttons.length > 0 ? buttons : [{ text: '好的', style: 'default' }];
 
@@ -61,7 +63,7 @@ export const CustomAlertModal: React.FC<CustomAlertModalProps> = ({
       default:
         return (
           <View style={[styles.iconCircle, styles.iconCircleInfo]}>
-            <AlertTriangleIcon size={26} color="#38BDF8" />
+            <AlertTriangleIcon size={26} color={colors.accent} />
           </View>
         );
     }
@@ -72,20 +74,29 @@ export const CustomAlertModal: React.FC<CustomAlertModalProps> = ({
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
+        <View style={[styles.overlay, { backgroundColor: colors.modalOverlay }]}>
           <TouchableWithoutFeedback>
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.modalBackground,
+                  borderColor: colors.cardBorder,
+                },
+              ]}
+            >
               {/* 顶部图标 */}
               {renderIcon()}
 
               {/* 标题 */}
-              <Text style={styles.title}>{title}</Text>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
 
               {/* 详细描述 */}
-              <Text style={styles.message}>{message}</Text>
+              <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
 
               {/* 操作按钮区 */}
               <View
@@ -104,9 +115,15 @@ export const CustomAlertModal: React.FC<CustomAlertModalProps> = ({
                       style={[
                         styles.button,
                         activeButtons.length <= 2 && styles.buttonFlex,
-                        isCancel && styles.cancelButton,
+                        isCancel && [
+                          styles.cancelButton,
+                          {
+                            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+                            borderColor: colors.cardBorder,
+                          },
+                        ],
                         isDestructive && styles.destructiveButton,
-                        !isCancel && !isDestructive && styles.primaryButton,
+                        !isCancel && !isDestructive && [styles.primaryButton, { backgroundColor: colors.accent }],
                       ]}
                       onPress={() => {
                         onClose();
@@ -117,7 +134,7 @@ export const CustomAlertModal: React.FC<CustomAlertModalProps> = ({
                       <Text
                         style={[
                           styles.buttonText,
-                          isCancel && styles.cancelButtonText,
+                          isCancel && [styles.cancelButtonText, { color: colors.textSecondary }],
                           isDestructive && styles.destructiveButtonText,
                         ]}
                       >
@@ -210,6 +227,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   button: {
+    width: '100%',
     paddingVertical: 12,
     borderRadius: 14,
     alignItems: 'center',

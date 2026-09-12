@@ -225,6 +225,45 @@ describe('SQLite Database Repositories (本地数据存储层测试)', () => {
       expect(found).toBeNull();
     });
 
+    it('支持更新交易记录 (update)', async () => {
+      await txRepo.insert({
+        id: 'tx-1',
+        assetId: 'btc',
+        type: 'BUY',
+        amount: 0.5,
+        price: 60000,
+        fee: 2,
+        feeCurrency: 'USD',
+        platform: 'Binance',
+        timestamp: 1000,
+        notes: '原备注',
+        createdAt: 1000,
+      });
+
+      const updated = await txRepo.update({
+        id: 'tx-1',
+        assetId: 'btc',
+        type: 'BUY',
+        amount: 0.8,
+        price: 62000,
+        fee: 3,
+        feeCurrency: 'USD',
+        platform: 'Binance',
+        timestamp: 1500,
+        notes: '修改后的备注',
+        createdAt: 1000,
+      });
+      expect(updated).toBe(true);
+
+      const found = await txRepo.findById('tx-1');
+      expect(found).not.toBeNull();
+      expect(found?.amount).toBe(0.8);
+      expect(found?.price).toBe(62000);
+      expect(found?.fee).toBe(3);
+      expect(found?.timestamp).toBe(1500);
+      expect(found?.notes).toBe('修改后的备注');
+    });
+
     it('按 assetId 批量删除交易流水', async () => {
       await txRepo.insert({
         id: 'tx-1',

@@ -4,12 +4,14 @@ import { PortfolioSummary, CurrencyType, AssetHolding } from '../../domain/types
 import { formatCurrencyValue, getCurrencySymbol } from '../../domain/currency';
 import { LanguageType, t } from '../../i18n';
 import { Sparkline } from '../charts/Sparkline';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   EyeIcon,
   EyeOffIcon,
   AnalyticsChartIcon,
 } from '../common/Icons';
+import { useTheme } from '../../theme';
 
 export type PnLDisplayMode = 'CUMULATIVE' | 'DAILY_24H';
 
@@ -40,6 +42,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
   onPressCurrency,
   onTogglePrivacy,
 }) => {
+  const { colors, isDark } = useTheme();
   const [pnlMode, setPnlMode] = useState<PnLDisplayMode>('CUMULATIVE');
 
   // 计算当日 24h 盈亏估算
@@ -108,53 +111,70 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
   };
 
   return (
-    <View style={styles.totalCard}>
+    <LinearGradient
+      colors={isDark ? ['#1F293D', '#0C1322'] : ['#FFFFFF', '#F8FAFC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={[styles.totalCard, { borderColor: colors.cardBorder }]}
+    >
       {/* 顶部标签与右上角分析按钮 */}
       <View style={styles.cardHeaderRow}>
         <View style={styles.labelGroup}>
           <TouchableOpacity onPress={onPressCurrency} style={styles.labelContainer} activeOpacity={0.7}>
-            <Text style={styles.cardLabel}>{t('totalCard.totalAssets', language)} ({currency})</Text>
-            <View style={styles.currencyBadge}>
-              <Text style={styles.currencyBadgeText}>{getCurrencySymbol(currency)}</Text>
+            <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t('totalCard.totalAssets', language)} ({currency})</Text>
+            <View style={[styles.currencyBadge, { backgroundColor: colors.accentLight }]}>
+              <Text style={[styles.currencyBadgeText, { color: colors.accent }]}>{getCurrencySymbol(currency)}</Text>
             </View>
           </TouchableOpacity>
           {onTogglePrivacy && (
             <TouchableOpacity onPress={onTogglePrivacy} style={styles.eyeBtn} activeOpacity={0.7}>
               {privacyMode ? (
-                <EyeOffIcon size={16} color="#64748B" />
+                <EyeOffIcon size={16} color={colors.textMuted} />
               ) : (
-                <EyeIcon size={16} color="#94A3B8" />
+                <EyeIcon size={16} color={colors.textSecondary} />
               )}
             </TouchableOpacity>
           )}
         </View>
 
         <View style={styles.headerRight}>
-          {isPolling && <Text style={styles.liveIndicator}>● {t('common.live', language)}</Text>}
+          {isPolling && <Text style={[styles.liveIndicator, { color: colors.gain }]}>● {t('common.live', language)}</Text>}
           <TouchableOpacity
-            style={styles.analysisTopBtn}
+            style={[styles.analysisTopBtn, { backgroundColor: colors.accentLight, borderColor: isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.25)' }]}
             onPress={onPressAnalysis}
             activeOpacity={0.75}
           >
-            <AnalyticsChartIcon size={14} color="#38BDF8" strokeWidth={2} />
-            <Text style={styles.analysisTopBtnText}>{t('totalCard.analytics', language)}</Text>
+            <AnalyticsChartIcon size={14} color={colors.accent} strokeWidth={2} />
+            <Text style={[styles.analysisTopBtnText, { color: colors.accent }]}>{t('totalCard.analytics', language)}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* 大字号总金额 */}
-      <Text style={styles.totalAmount}>
+      <Text style={[styles.totalAmount, { color: colors.textPrimary }]}>
         {formatCurrencyValue(summary.totalMarketValue, currency, { privacyMode })}
       </Text>
 
       {/* 盈亏胶囊指示器 */}
       <View style={styles.badgeContainer}>
         <TouchableOpacity
-          style={[styles.pnlBadge, !isPositive && styles.pnlBadgeNegative]}
+          style={[
+            styles.pnlBadge,
+            {
+              backgroundColor: isPositive ? colors.gainLight : colors.lossLight,
+            },
+          ]}
           onPress={togglePnlMode}
           activeOpacity={0.7}
         >
-          <Text style={[styles.pnlText, !isPositive && styles.pnlTextNegative]}>
+          <Text
+            style={[
+              styles.pnlText,
+              {
+                color: isPositive ? colors.gain : colors.loss,
+              },
+            ]}
+          >
             {privacyMode ? (
               '•••••• (••%)'
             ) : (
@@ -166,7 +186,14 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
               </>
             )}
           </Text>
-          <Text style={styles.modeTagText}>
+          <Text
+            style={[
+              styles.modeTagText,
+              {
+                color: isPositive ? colors.gain : colors.loss,
+              },
+            ]}
+          >
             {isCumulative ? `${t('totalCard.cumulative', language)} ⇄` : `${t('totalCard.daily24h', language)} ⇄`}
           </Text>
         </TouchableOpacity>
@@ -185,19 +212,19 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
       ) : (
         <View style={{ height: 16 }} />
       )}
-    </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   totalCard: {
-    backgroundColor: 'rgba(18, 26, 43, 0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.14)',
     borderRadius: 24,
     padding: 20,
     paddingBottom: 16,
     marginBottom: 20,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
