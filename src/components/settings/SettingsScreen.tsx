@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
-  Alert,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
@@ -32,7 +31,9 @@ import {
   CloudBackupIcon,
   ExchangeMatrixIcon,
   UserAvatarIcon,
+  TrashCanIcon,
 } from '../common/Icons';
+import { CustomAlertModal, AlertType, AlertButton } from '../common/CustomAlertModal';
 
 export interface SettingsScreenProps {
   visible: boolean;
@@ -68,6 +69,45 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [importJsonText, setImportJsonText] = useState('');
   const [importLoading, setImportLoading] = useState(false);
 
+  // 自定义暗黑质感提示框状态
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: AlertType;
+    title: string;
+    message: string;
+    buttons: AlertButton[];
+  }>({
+    visible: false,
+    type: 'warning',
+    title: '',
+    message: '',
+    buttons: [],
+  });
+
+  const showAlert = (
+    title: string,
+    message: string,
+    buttons?: AlertButton[],
+    type: AlertType = 'warning'
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      buttons: buttons || [
+        {
+          text: t('common.confirm', lang),
+          style: 'default',
+        },
+      ],
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig((prev) => ({ ...prev, visible: false }));
+  };
+
   useEffect(() => {
     if (visible) {
       setForexInfo(defaultForexService.getRateInfo());
@@ -96,7 +136,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // 导出 CSV 交易明细
   const handleExportCSV = async () => {
     if (transactions.length === 0) {
-      Alert.alert(t('common.error', lang), lang === 'zh' ? '暂无交易流水记录可导出。' : 'No transactions to export.');
+      showAlert(t('common.error', lang), lang === 'zh' ? '暂无交易流水记录可导出。' : 'No transactions to export.', undefined, 'warning');
       return;
     }
     const csvString = DataExportService.exportTransactionsToCSV(transactions, assets);
@@ -112,20 +152,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // 确认恢复导入 JSON
   const handleConfirmImport = async () => {
     if (!importJsonText.trim()) {
-      Alert.alert(t('common.error', lang), lang === 'zh' ? '请输入或粘贴 JSON 备份内容' : 'Please paste backup JSON content');
+      showAlert(t('common.error', lang), lang === 'zh' ? '请输入或粘贴 JSON 备份内容' : 'Please paste backup JSON content', undefined, 'warning');
       return;
     }
 
     const validation = DataExportService.validateAndParseJSONBackup(importJsonText);
     if (!validation.success || !validation.data) {
-      Alert.alert(
+      showAlert(
         lang === 'zh' ? '导入失败' : 'Import Failed',
-        validation.error || (lang === 'zh' ? '备份文件格式不正确' : 'Invalid backup format')
+        validation.error || (lang === 'zh' ? '备份文件格式不正确' : 'Invalid backup format'),
+        undefined,
+        'danger'
       );
       return;
     }
 
-    Alert.alert(
+    showAlert(
       lang === 'zh' ? '确认恢复备份？' : 'Confirm Restore Backup?',
       lang === 'zh'
         ? `检测到 ${validation.data.assets.length} 个资产和 ${validation.data.transactions.length} 条交易记录。恢复操作将覆盖现有记录。`
@@ -162,15 +204,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               await onDataResetOrImported();
               setImportModalVisible(false);
               setImportJsonText('');
-              Alert.alert(t('common.success', lang), t('settings.restoreSuccess', lang));
+              showAlert(t('common.success', lang), t('settings.restoreSuccess', lang), undefined, 'success');
             } catch (err: any) {
-              Alert.alert(t('common.error', lang), err.message || 'Error restoring data');
+              showAlert(t('common.error', lang), err.message || 'Error restoring data', undefined, 'danger');
             } finally {
               setImportLoading(false);
             }
           },
         },
-      ]
+      ],
+      'warning'
     );
   };
 
@@ -180,15 +223,46 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       const updated = await defaultForexService.fetchLatestRates();
       setForexInfo(updated);
-      Alert.alert(
+      showAlert(
         t('settings.rateUpdateSuccess', lang),
-        `1 USD = ${updated.rates.CNY.toFixed(2)} CNY / ${updated.rates.EUR.toFixed(2)} EUR`
+        `1 USD = ${updated.rates.CNY.toFixed(2)} CNY / ${updated.rates.EUR.toFixed(2)} EUR`,
+        undefined,
+        'success'
       );
     } catch {
-      Alert.alert(t('common.error', lang), t('settings.rateUpdateFailed', lang));
+      showAlert(t('common.error', lang), t('settings.rateUpdateFailed', lang), undefined, 'danger');
     } finally {
       setIsRefreshingForex(false);
     }
+  };
+
+  // 清空所有本地数据
+  const handleClearAllData = () => {
+    showAlert(
+      t('settings.clearDataConfirmTitle', lang),
+      t('settings.clearDataConfirmDesc', lang),
+      [
+        {
+          text: t('common.cancel', lang),
+          style: 'cancel',
+        },
+        {
+          text: t('settings.clearDataConfirmBtn', lang),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await txRepo.deleteAll();
+              await assetRepo.deleteAll();
+              await onDataResetOrImported();
+              showAlert(t('common.success', lang), t('settings.clearDataSuccess', lang), undefined, 'success');
+            } catch (err: any) {
+              showAlert(t('common.error', lang), err?.message || 'Error clearing data', undefined, 'danger');
+            }
+          },
+        },
+      ],
+      'danger'
+    );
   };
 
   return (
@@ -220,7 +294,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </View>
             <TouchableOpacity
               style={styles.profileEditBtn}
-              onPress={() => Alert.alert(t('settings.editProfile', lang), lang === 'zh' ? '个人资料编辑功能开发中' : 'Profile edit feature coming soon')}
+              onPress={() => showAlert(t('settings.editProfile', lang), lang === 'zh' ? '个人资料编辑功能开发中' : 'Profile edit feature coming soon', undefined, 'info')}
               activeOpacity={0.7}
             >
               <EditPencilIcon size={16} color="#94A3B8" />
@@ -290,7 +364,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             {/* Theme */}
             <TouchableOpacity
               style={styles.rowItem}
-              onPress={() => Alert.alert(t('settings.theme', lang), lang === 'zh' ? '当前为原生极简深黑模式 (Dark Mode)' : 'Currently using Dark Mode')}
+              onPress={() => showAlert(t('settings.theme', lang), lang === 'zh' ? '当前为原生极简深黑模式 (Dark Mode)' : 'Currently using Dark Mode', undefined, 'info')}
               activeOpacity={0.7}
             >
               <View style={styles.rowLeft}>
@@ -312,7 +386,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             {/* Connected Exchanges */}
             <TouchableOpacity
               style={styles.rowItem}
-              onPress={() => Alert.alert(t('settings.connectedExchanges', lang), lang === 'zh' ? '已连接市场数据通道: OKX, Binance, Coinbase, CoinGecko' : 'Connected channels: OKX, Binance, Coinbase, CoinGecko')}
+              onPress={() => showAlert(t('settings.connectedExchanges', lang), lang === 'zh' ? '已连接市场数据通道: OKX, Binance, Coinbase, CoinGecko' : 'Connected channels: OKX, Binance, Coinbase, CoinGecko', undefined, 'info')}
               activeOpacity={0.7}
             >
               <View style={styles.rowLeft}>
@@ -358,6 +432,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </View>
               <View style={styles.rowRight}>
                 <ChevronRightIcon size={16} color="#64748B" />
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* Clear All Data */}
+            <TouchableOpacity
+              style={styles.rowItem}
+              onPress={handleClearAllData}
+              activeOpacity={0.7}
+            >
+              <View style={styles.rowLeft}>
+                <View style={[styles.iconContainer, styles.dangerIconContainer]}>
+                  <TrashCanIcon size={20} color="#EF4444" />
+                </View>
+                <View>
+                  <Text style={[styles.rowTitle, styles.dangerTitle]}>{t('settings.clearData', lang)}</Text>
+                  <Text style={styles.rowSubtitle}>{t('settings.clearDataSubtitle', lang)}</Text>
+                </View>
+              </View>
+              <View style={styles.rowRight}>
+                <ChevronRightIcon size={16} color="#EF4444" />
               </View>
             </TouchableOpacity>
           </View>
@@ -490,6 +586,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </View>
           </View>
         </Modal>
+
+        {/* 自定义暗黑质感提示框 */}
+        <CustomAlertModal
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          onClose={closeAlert}
+        />
       </SafeAreaView>
     </Modal>
   );
@@ -629,10 +735,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  dangerIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowTitle: {
     fontSize: 15,
     fontWeight: '500',
     color: '#F8FAFC',
+  },
+  dangerTitle: {
+    color: '#EF4444',
   },
   rowSubtitle: {
     fontSize: 12,

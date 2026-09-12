@@ -243,6 +243,39 @@ describe('SQLite Database Repositories (本地数据存储层测试)', () => {
       const list = await txRepo.findByAssetId('btc');
       expect(list.length).toBe(0);
     });
+
+    it('一键清空所有交易流水 (deleteAll)', async () => {
+      await txRepo.insert({
+        id: 'tx-1',
+        assetId: 'btc',
+        type: 'BUY',
+        amount: 0.5,
+        price: 60000,
+        platform: 'Binance',
+        timestamp: 1000,
+        createdAt: 1000,
+      });
+      await txRepo.insert({
+        id: 'tx-2',
+        assetId: 'btc',
+        type: 'BUY',
+        amount: 1.0,
+        price: 61000,
+        platform: 'Binance',
+        timestamp: 2000,
+        createdAt: 2000,
+      });
+
+      await txRepo.deleteAll();
+      const list = await txRepo.findAll();
+      expect(list.length).toBe(0);
+    });
+
+    it('一键清空所有资产记录 (assetRepo.deleteAll)', async () => {
+      await assetRepo.deleteAll();
+      const all = await assetRepo.findAll();
+      expect(all.length).toBe(0);
+    });
   });
 });
 

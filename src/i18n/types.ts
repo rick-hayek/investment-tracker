@@ -68,6 +68,12 @@ export interface TranslationDictionary {
     importPlaceholder: string;
     validateAndRestore: string;
     restoreSuccess: string;
+    clearData: string;
+    clearDataSubtitle: string;
+    clearDataConfirmTitle: string;
+    clearDataConfirmDesc: string;
+    clearDataConfirmBtn: string;
+    clearDataSuccess: string;
   };
   drawer: {
     portfolioHome: string;
@@ -96,6 +102,16 @@ export interface TranslationDictionary {
     oversellError: string;
     invalidAmountError: string;
     recordTransactionBtn: string;
+    selectHoldingToSell: string;
+    lockedHolding: string;
+    noHoldingsToSell: string;
+    goToBuy: string;
+    allHoldingsLabel: string;
+    targetAssetToBuy: string;
+    txDate: string;
+    txDatePlaceholder: string;
+    useCurrentTime: string;
+    invalidDateError: string;
   };
   detail: {
     currentHoldingValue: string;

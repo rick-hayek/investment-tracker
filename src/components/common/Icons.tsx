@@ -46,6 +46,25 @@ export const ChevronRightIcon: React.FC<IconProps> = ({
 );
 
 /**
+ * 极简下行尖角线条图标 (v)
+ */
+export const ChevronDownIcon: React.FC<IconProps> = ({
+  size = 18,
+  color = '#64748B',
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M6 9L12 15L18 9"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+/**
  * 极简三道杠菜单线条图标 (Menu / Hamburger)
  */
 export const MenuIcon: React.FC<IconProps> = ({
@@ -530,6 +549,66 @@ export const GlobeIcon: React.FC<IconProps> = ({
     />
     <Path
       d="M12 3C14.5 5.5 16 8.5 16 12C16 15.5 14.5 18.5 12 21C9.5 18.5 8 15.5 8 12C8 8.5 9.5 5.5 12 3Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+/**
+ * 极简垃圾桶/清空线条图标 (Trash / Delete / Clear)
+ */
+export const TrashCanIcon: React.FC<IconProps> = ({
+  size = 20,
+  color = '#EF4444',
+  strokeWidth = 1.8,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+/**
+ * 极简警告感叹号三角线条图标 (Warning / Alert Triangle)
+ */
+export const AlertTriangleIcon: React.FC<IconProps> = ({
+  size = 24,
+  color = '#EF4444',
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Line x1="12" y1="9" x2="12" y2="13" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Circle cx="12" cy="17" r="1" fill={color} />
+  </Svg>
+);
+
+/**
+ * 极简成功对勾圆圈线条图标 (Success Check Circle)
+ */
+export const CheckCircleIcon: React.FC<IconProps> = ({
+  size = 24,
+  color = '#10B981',
+  strokeWidth = 2,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={strokeWidth} />
+    <Path
+      d="M8.5 12.5L11 15L15.5 9.5"
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"

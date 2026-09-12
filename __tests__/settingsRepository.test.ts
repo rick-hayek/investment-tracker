@@ -63,4 +63,13 @@ describe('SettingsRepository (用户偏好配置持久化测试)', () => {
     const reloaded = await settingsRepo.getSettings();
     expect(reloaded).toEqual(DEFAULT_USER_SETTINGS);
   });
+
+  it('支持存取自定义 key-value (getRawValue / setRawValue)', async () => {
+    const initial = await settingsRepo.getRawValue('test_flag');
+    expect(initial).toBeNull();
+
+    await settingsRepo.setRawValue('test_flag', 'true');
+    const updated = await settingsRepo.getRawValue('test_flag');
+    expect(updated).toBe('true');
+  });
 });

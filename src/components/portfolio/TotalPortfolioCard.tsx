@@ -8,8 +8,6 @@ import { Sparkline } from '../charts/Sparkline';
 import {
   EyeIcon,
   EyeOffIcon,
-  DepositPlusIcon,
-  WithdrawArrowIcon,
   AnalyticsChartIcon,
 } from '../common/Icons';
 
@@ -22,8 +20,8 @@ export interface TotalPortfolioCardProps {
   isPolling?: boolean;
   privacyMode?: boolean;
   language?: LanguageType;
-  onPressBuy: () => void;
-  onPressSell: () => void;
+  onPressBuy?: () => void;
+  onPressSell?: () => void;
   onPressAnalysis: () => void;
   onPressCurrency?: () => void;
   onTogglePrivacy?: () => void;
@@ -75,7 +73,10 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
 
   // 生成 Sparkline 走势点阵
   const sparklineData = useMemo(() => {
-    const base = summary.totalMarketValue || 100000;
+    if (summary.totalMarketValue <= 0 || holdings.length === 0) {
+      return [];
+    }
+    const base = summary.totalMarketValue;
     const isUp = summary.totalUnrealizedPnL >= 0;
     if (isUp) {
       return [
@@ -100,7 +101,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
         base,
       ];
     }
-  }, [summary.totalMarketValue, summary.totalUnrealizedPnL]);
+  }, [summary.totalMarketValue, summary.totalUnrealizedPnL, holdings.length]);
 
   const togglePnlMode = () => {
     setPnlMode((prev) => (prev === 'CUMULATIVE' ? 'DAILY_24H' : 'CUMULATIVE'));
@@ -108,7 +109,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
 
   return (
     <View style={styles.totalCard}>
-      {/* 顶部标签与实时指示器 (匹配 01_home_screen.jpg) */}
+      {/* 顶部标签与右上角分析按钮 */}
       <View style={styles.cardHeaderRow}>
         <View style={styles.labelGroup}>
           <TouchableOpacity onPress={onPressCurrency} style={styles.labelContainer} activeOpacity={0.7}>
@@ -127,7 +128,18 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
             </TouchableOpacity>
           )}
         </View>
-        {isPolling && <Text style={styles.liveIndicator}>● {t('common.live', language)}</Text>}
+
+        <View style={styles.headerRight}>
+          {isPolling && <Text style={styles.liveIndicator}>● {t('common.live', language)}</Text>}
+          <TouchableOpacity
+            style={styles.analysisTopBtn}
+            onPress={onPressAnalysis}
+            activeOpacity={0.75}
+          >
+            <AnalyticsChartIcon size={14} color="#38BDF8" strokeWidth={2} />
+            <Text style={styles.analysisTopBtnText}>{t('totalCard.analytics', language)}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* 大字号总金额 */}
@@ -161,30 +173,18 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
       </View>
 
       {/* Sparkline 微缩走势图 */}
-      <View style={styles.sparklineContainer}>
-        <Sparkline
-          data={sparklineData}
-          width={310}
-          height={68}
-          isPositive={summary.totalUnrealizedPnL >= 0}
-        />
-      </View>
-
-      {/* 快捷操作胶囊 (方案 A: 买入 / 卖出 / 资产分析，匹配设计稿线条图标) */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onPressBuy} activeOpacity={0.7}>
-          <DepositPlusIcon size={16} color="#38BDF8" strokeWidth={2} />
-          <Text style={styles.actionBtnText}>{t('totalCard.buy', language)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onPressSell} activeOpacity={0.7}>
-          <WithdrawArrowIcon size={16} color="#F8FAFC" strokeWidth={2} />
-          <Text style={styles.actionBtnText}>{t('totalCard.sell', language)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onPressAnalysis} activeOpacity={0.7}>
-          <AnalyticsChartIcon size={16} color="#A7F3D0" strokeWidth={2} />
-          <Text style={styles.actionBtnText}>{t('totalCard.analytics', language)}</Text>
-        </TouchableOpacity>
-      </View>
+      {sparklineData.length > 0 ? (
+        <View style={styles.sparklineContainer}>
+          <Sparkline
+            data={sparklineData}
+            width={310}
+            height={68}
+            isPositive={summary.totalUnrealizedPnL >= 0}
+          />
+        </View>
+      ) : (
+        <View style={{ height: 16 }} />
+      )}
     </View>
   );
 };
@@ -196,6 +196,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 24,
     padding: 20,
+    paddingBottom: 16,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -218,6 +219,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  analysisTopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  analysisTopBtnText: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '600',
   },
   eyeBtn: {
     padding: 2,
@@ -288,29 +310,5 @@ const styles = StyleSheet.create({
   sparklineContainer: {
     marginVertical: 6,
     alignItems: 'center',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginTop: 8,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#212836',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-  },
-  actionBtnText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '600',
   },
 });

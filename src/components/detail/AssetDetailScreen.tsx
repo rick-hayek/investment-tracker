@@ -50,12 +50,17 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
   const [isFavorite, setIsFavorite] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // 加载该资产的历史交易流水
+  // 加载该资产的历史交易流水 (严格限定匹配当前资产与当前平台)
   const loadTransactions = useCallback(async () => {
     if (!holding || !txRepo) return;
     try {
       const list = await txRepo.findByAssetId(holding.assetId);
-      setTransactions(list);
+      const filtered = list.filter((tx) => {
+        const matchesAsset = tx.assetId === holding.assetId;
+        const matchesPlatform = !holding.platform || tx.platform === holding.platform;
+        return matchesAsset && matchesPlatform;
+      });
+      setTransactions(filtered);
     } catch (err) {
       console.warn('Failed to load asset detail txs:', err);
     }
@@ -125,6 +130,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
           {/* 3. 历史交易明细流水 */}
           <TransactionHistoryList
             transactions={transactions}
+            platform={currentPlatform}
             currentPrice={holding.currentPrice}
             averageCost={holding.averageCost}
             currency={currency}

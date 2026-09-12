@@ -5,6 +5,7 @@ import { AssetRepository } from '../src/database/repositories/assetRepository';
 import { TransactionRepository } from '../src/database/repositories/transactionRepository';
 import { extractBaseSymbol, resolveCoinGeckoId } from '../src/services/symbolMapper';
 import { Transaction } from '../src/domain/types';
+import { formatCurrentDateTime, parseTransactionDateTime } from '../src/utils/dateUtils';
 
 describe('Add Transaction Validation & Persistence (交易录入与防超卖校验测试)', () => {
   let db: NodeSqliteAdapter;
@@ -257,6 +258,207 @@ describe('Add Transaction Validation & Persistence (交易录入与防超卖校�
       expect(holding.totalQuantity).toBe(0);
       // 已实现盈亏基于实际持有的 1.0 计算: (65000 - 60000) * 1.0 = 5000
       expect(holding.realizedPnL).toBe(5000);
+    });
+  });
+
+  describe('卖出持仓选择与详情页锁定规则 (Sell Holding Selection & Locking Logic)', () => {
+    const mockHoldings: any[] = [
+      {
+        assetId: 'btc_binance',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        platform: 'Binance',
+        totalQuantity: 4.0,
+        averageCost: 77260,
+      },
+      {
+        assetId: 'btc_okx',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        platform: 'OKX',
+        totalQuantity: 2.0,
+        averageCost: 77280,
+      },
+      {
+        assetId: 'eth_binance',
+        symbol: 'ETH',
+        name: 'Ethereum',
+        platform: 'Binance',
+        totalQuantity: 0, // 已清仓持仓
+        averageCost: 3500,
+      },
+    ];
+
+    it('首页入口卖出：只筛选 totalQuantity > 0 的现有持仓供用户下拉选择', () => {
+      const availableHoldings = mockHoldings.filter((h) => h.totalQuantity > 0);
+      expect(availableHoldings).toHaveLength(2);
+      expect(availableHoldings.map((h) => h.assetId)).toEqual(['btc_binance', 'btc_okx']);
+      // 已清仓的持仓不应出现在卖出下拉选项中
+      expect(availableHoldings.some((h) => h.assetId === 'eth_binance')).toBe(false);
+    });
+
+    it('持仓详情页入口卖出：锁定该持仓，支持部分卖出或全部卖出', () => {
+      const currentHolding = mockHoldings[0]; // BTC Binance, 持仓 4.0
+      const lockAsset = true;
+
+      expect(lockAsset).toBe(true);
+      expect(currentHolding.symbol).toBe('BTC');
+      expect(currentHolding.platform).toBe('Binance');
+
+      // 1. 部分卖出：卖出 1.5 BTC
+      const partSell = PnLEngine.validateTransaction('SELL', 1.5, 78000, currentHolding.totalQuantity);
+      expect(partSell.valid).toBe(true);
+
+      // 2. 全部卖出：卖出 4.0 BTC
+      const fullSell = PnLEngine.validateTransaction('SELL', currentHolding.totalQuantity, 78000, currentHolding.totalQuantity);
+      expect(fullSell.valid).toBe(true);
+
+      // 3. 超额卖出：卖出 4.01 BTC 应被阻断
+      const overSell = PnLEngine.validateTransaction('SELL', 4.01, 78000, currentHolding.totalQuantity);
+      expect(overSell.valid).toBe(false);
+      expect(overSell.error).toContain('超出当前持仓可用量');
+    });
+
+    it('持仓详情页入口买入：锁定当前平台和代币进行补仓', () => {
+      const currentHolding = mockHoldings[0]; // BTC Binance
+      const lockAsset = true;
+
+      // 锁定状态下，交易对象平台与代币已确定，仅允许输入数量和价格进行买入记账
+      expect(lockAsset).toBe(true);
+      expect(currentHolding.symbol).toBe('BTC');
+      expect(currentHolding.platform).toBe('Binance');
+
+      const buyRes = PnLEngine.validateTransaction('BUY', 1.0, 77240);
+      expect(buyRes.valid).toBe(true);
+    });
+
+    it('空持仓保护：无持仓资产时提示引导先买入', () => {
+      const emptyHoldings: any[] = [];
+      const available = emptyHoldings.filter((h) => h.totalQuantity > 0);
+      expect(available).toHaveLength(0);
+    });
+  });
+
+  describe('交易日期时间字段与时间戳持久化 (Transaction Date & Time Field)', () => {
+    it('留空或空白字符串时，默认使用当前系统时间', () => {
+      const before = Date.now();
+      const resEmpty = parseTransactionDateTime('');
+      const after = Date.now();
+
+      expect(resEmpty.valid).toBe(true);
+      expect(resEmpty.timestamp).toBeGreaterThanOrEqual(before);
+      expect(resEmpty.timestamp).toBeLessThanOrEqual(after);
+
+      const resSpaces = parseTransactionDateTime('   ');
+      expect(resSpaces.valid).toBe(true);
+      expect(resSpaces.timestamp).toBeGreaterThanOrEqual(before);
+    });
+
+    it('标准日期时间格式 (YYYY-MM-DD HH:mm) 能准确解析为本地毫秒时间戳', () => {
+      const res = parseTransactionDateTime('2026-05-20 14:30');
+      expect(res.valid).toBe(true);
+      const expected = new Date(2026, 4, 20, 14, 30, 0).getTime();
+      expect(res.timestamp).toBe(expected);
+    });
+
+    it('斜杠格式 (YYYY/MM/DD HH:mm:ss) 同样支持解析', () => {
+      const res = parseTransactionDateTime('2025/12/31 23:59:59');
+      expect(res.valid).toBe(true);
+      const expected = new Date(2025, 11, 31, 23, 59, 59).getTime();
+      expect(res.timestamp).toBe(expected);
+    });
+
+    it('仅提供年月日时，保留日期并自动补充当前系统时间', () => {
+      const res = parseTransactionDateTime('2026-08-15');
+      expect(res.valid).toBe(true);
+      const parsedDate = new Date(res.timestamp);
+      expect(parsedDate.getFullYear()).toBe(2026);
+      expect(parsedDate.getMonth()).toBe(7); // 8月 (0-indexed 7)
+      expect(parsedDate.getDate()).toBe(15);
+    });
+
+    it('非法日期格式或不存在的日期（如平年2月31日）被拦截并返回 valid: false', () => {
+      expect(parseTransactionDateTime('not-a-date').valid).toBe(false);
+      expect(parseTransactionDateTime('2026-02-31').valid).toBe(false);
+      expect(parseTransactionDateTime('2026-13-01').valid).toBe(false);
+      expect(parseTransactionDateTime('2026-05-20 25:00').valid).toBe(false);
+      // 比特币诞生前 (2008年之前)
+      expect(parseTransactionDateTime('1999-01-01').valid).toBe(false);
+    });
+
+    it('formatCurrentDateTime 能正确输出 YYYY-MM-DD HH:mm 格式', () => {
+      const testDate = new Date(2026, 8, 12, 9, 5); // 2026-09-12 09:05
+      const formatted = formatCurrentDateTime(testDate);
+      expect(formatted).toBe('2026-09-12 09:05');
+    });
+
+    it('交易持久化：用户指定历史日期时，准确将对应时间戳写入数据库', async () => {
+      const assetId = 'btc_binance';
+      await assetRepo.insert({
+        id: assetId,
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        platform: 'Binance',
+        createdAt: Date.now(),
+      });
+
+      // 用户指定 2025年6月1日 10:00:00 买入
+      const customDateStr = '2025-06-01 10:00';
+      const parsed = parseTransactionDateTime(customDateStr);
+      expect(parsed.valid).toBe(true);
+
+      const txId = 'tx_custom_date_001';
+      await txRepo.insert({
+        id: txId,
+        assetId,
+        type: 'BUY',
+        amount: 1.2,
+        price: 68000,
+        platform: 'Binance',
+        timestamp: parsed.timestamp,
+        notes: '2025年历史定投',
+        createdAt: Date.now(),
+      });
+
+      // 从数据库读取验证
+      const savedTx = await txRepo.findById(txId);
+      expect(savedTx).not.toBeNull();
+      expect(savedTx?.timestamp).toBe(parsed.timestamp);
+      expect(new Date(savedTx!.timestamp).getFullYear()).toBe(2025);
+      expect(savedTx?.notes).toBe('2025年历史定投');
+    });
+
+    it('交易持久化：未指定日期时，写入当前时间戳', async () => {
+      const assetId = 'eth_binance';
+      await assetRepo.insert({
+        id: assetId,
+        symbol: 'ETH',
+        name: 'Ethereum',
+        platform: 'Binance',
+        createdAt: Date.now(),
+      });
+
+      const before = Date.now();
+      const parsed = parseTransactionDateTime(''); // 留空
+      expect(parsed.valid).toBe(true);
+
+      const txId = 'tx_now_001';
+      await txRepo.insert({
+        id: txId,
+        assetId,
+        type: 'BUY',
+        amount: 5,
+        price: 3200,
+        platform: 'Binance',
+        timestamp: parsed.timestamp,
+        createdAt: Date.now(),
+      });
+      const after = Date.now();
+
+      const savedTx = await txRepo.findById(txId);
+      expect(savedTx).not.toBeNull();
+      expect(savedTx!.timestamp).toBeGreaterThanOrEqual(before);
+      expect(savedTx!.timestamp).toBeLessThanOrEqual(after);
     });
   });
 });

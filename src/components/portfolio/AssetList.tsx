@@ -13,6 +13,7 @@ import { KNOWN_ASSETS } from '../../services/symbolMapper';
 import { LanguageType, t } from '../../i18n';
 
 import { BtcLogo, EthLogo, SolLogo } from '../common/Icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export interface AssetListProps {
   holdings: AssetHolding[];
@@ -40,11 +41,11 @@ export const AssetList: React.FC<AssetListProps> = ({
   const renderLogo = (symbol: string) => {
     switch (symbol.toUpperCase()) {
       case 'BTC':
-        return <BtcLogo size={36} />;
+        return <BtcLogo size={34} />;
       case 'ETH':
-        return <EthLogo size={36} />;
+        return <EthLogo size={34} />;
       case 'SOL':
-        return <SolLogo size={36} />;
+        return <SolLogo size={34} />;
       default: {
         const meta = KNOWN_ASSETS[symbol];
         const iconBg = meta ? meta.color : '#3B82F6';
@@ -62,47 +63,49 @@ export const AssetList: React.FC<AssetListProps> = ({
 
     return (
       <TouchableOpacity
-        style={styles.assetCard}
+        style={styles.cardTouchable}
         onPress={() => onPressAsset(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.assetLeft}>
-          {renderLogo(item.symbol)}
-          <View style={styles.nameContainer}>
-            <View style={styles.assetTitleRow}>
-              <Text style={styles.assetName}>{item.name}</Text>
-              {item.platform && (
-                <View style={styles.platformBadge}>
-                  <Text style={styles.platformBadgeText}>{item.platform}</Text>
-                </View>
-              )}
+        <LinearGradient
+          colors={['#27354B', '#131A28']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.assetCard}
+        >
+          <View style={styles.assetLeft}>
+            {renderLogo(item.symbol)}
+            <View style={styles.nameContainer}>
+              <View style={styles.assetTitleRow}>
+                <Text style={styles.assetName}>{item.name}</Text>
+                {item.platform && (
+                  <View style={styles.platformBadge}>
+                    <Text style={styles.platformBadgeText}>{item.platform}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.assetSub}>
+                {item.symbol} • {privacyMode ? '••••' : item.totalQuantity}
+              </Text>
             </View>
-            <Text style={styles.assetSub}>
-              {item.symbol} • {privacyMode ? '••••' : item.totalQuantity}
-            </Text>
           </View>
-        </View>
 
-        <View style={styles.assetRight}>
-          <View style={styles.rightTopRow}>
+          <View style={styles.assetRight}>
             <Text style={styles.assetValue}>
               {formatCurrencyValue(item.marketValue, currency, { privacyMode })}
             </Text>
-            <Text style={styles.pnlLabel}>{t('holdings.pnl', language)}</Text>
+            <View style={styles.rightBottomRow}>
+              <Text style={isHoldingPositive ? styles.pnlGreen : styles.pnlRed}>
+                {privacyMode
+                  ? '•••••• (••%)'
+                  : `${isHoldingPositive ? '+' : '-'}${formatCurrencyValue(
+                      Math.abs(item.unrealizedPnL),
+                      currency
+                    )} (${isHoldingPositive ? '+' : ''}${item.unrealizedPnLPercent.toFixed(1)}%)`}
+              </Text>
+            </View>
           </View>
-          <View style={styles.rightBottomRow}>
-            <Text style={styles.assetSubRight}>
-              {formatCurrencyValue(item.currentPrice, currency)}
-            </Text>
-            <Text style={isHoldingPositive ? styles.pnlGreen : styles.pnlRed}>
-              {privacyMode ? (
-                '••••••'
-              ) : (
-                `${isHoldingPositive ? '+' : ''}${item.unrealizedPnLPercent.toFixed(1)}%`
-              )}
-            </Text>
-          </View>
-        </View>
+        </LinearGradient>
       </TouchableOpacity>
     );
   };
@@ -154,16 +157,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  cardTouchable: {
+    marginBottom: 8,
+    borderRadius: 16,
+  },
   assetCard: {
-    backgroundColor: 'rgba(18, 26, 43, 0.75)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 18,
-    padding: 16,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    overflow: 'hidden',
   },
   assetLeft: {
     flexDirection: 'row',
@@ -176,26 +183,26 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   coinIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
   },
   coinIconText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   assetName: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   platformBadge: {
     backgroundColor: 'rgba(59, 130, 246, 0.2)',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 1,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(59, 130, 246, 0.4)',
@@ -208,33 +215,19 @@ const styles = StyleSheet.create({
   assetSub: {
     color: '#94A3B8',
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 1,
   },
   nameContainer: {
     marginLeft: 2,
   },
   assetRight: {
     alignItems: 'flex-end',
-  },
-  rightTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
   },
   rightBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 3,
-  },
-  pnlLabel: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  assetSubRight: {
-    color: '#94A3B8',
-    fontSize: 12,
+    marginTop: 2,
   },
   assetValue: {
     color: '#FFFFFF',
@@ -243,12 +236,12 @@ const styles = StyleSheet.create({
   },
   pnlGreen: {
     color: '#10B981',
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
   },
   pnlRed: {
     color: '#EF4444',
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
   },
 });

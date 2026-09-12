@@ -30,45 +30,6 @@ import { useMarketPoll } from './src/services/useMarketPoll';
 import { MenuIcon, BellIcon } from './src/components/common/Icons';
 import { LanguageType, t } from './src/i18n';
 
-const INITIAL_DEMO_ASSETS: Asset[] = [
-  { id: 'btc_binance', symbol: 'BTC', name: 'Bitcoin', platform: 'Binance', createdAt: 1700000000000 },
-  { id: 'eth_okx', symbol: 'ETH', name: 'Ethereum', platform: 'OKX', createdAt: 1700000000000 },
-  { id: 'sol_coinbase', symbol: 'SOL', name: 'Solana', platform: 'Coinbase', createdAt: 1700000000000 },
-];
-
-const INITIAL_DEMO_TXS: Transaction[] = [
-  {
-    id: 'tx_demo_btc',
-    assetId: 'btc_binance',
-    type: 'BUY',
-    amount: 1.0,
-    price: 64500,
-    platform: 'Binance',
-    timestamp: Date.now() - 86400000 * 3,
-    createdAt: Date.now() - 86400000 * 3,
-  },
-  {
-    id: 'tx_demo_eth',
-    assetId: 'eth_okx',
-    type: 'BUY',
-    amount: 10.0,
-    price: 3350,
-    platform: 'OKX',
-    timestamp: Date.now() - 86400000 * 2,
-    createdAt: Date.now() - 86400000 * 2,
-  },
-  {
-    id: 'tx_demo_sol',
-    assetId: 'sol_coinbase',
-    type: 'BUY',
-    amount: 100.0,
-    price: 147,
-    platform: 'Coinbase',
-    timestamp: Date.now() - 86400000 * 1,
-    createdAt: Date.now() - 86400000 * 1,
-  },
-];
-
 export default function App() {
   const assetRepo = useMemo(() => new AssetRepository(), []);
   const txRepo = useMemo(() => new TransactionRepository(), []);
@@ -88,6 +49,7 @@ export default function App() {
   const [modalType, setModalType] = useState<TransactionType>('BUY');
   const [modalSymbol, setModalSymbol] = useState<string>('BTC');
   const [modalPlatform, setModalPlatform] = useState<PlatformType>('Binance');
+  const [modalLockAsset, setModalLockAsset] = useState(false);
 
   // 资产配比统计弹窗
   const [allocationModalVisible, setAllocationModalVisible] = useState(false);
@@ -99,11 +61,7 @@ export default function App() {
   // 数据库实体数据
   const [assets, setAssets] = useState<Asset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [marketPrices, setMarketPrices] = useState<Record<string, { price: number; change24h: number }>>({
-    btc: { price: 68420.0, change24h: 3.8 },
-    eth: { price: 3540.25, change24h: 5.2 },
-    sol: { price: 145.2, change24h: -1.2 },
-  });
+  const [marketPrices, setMarketPrices] = useState<Record<string, { price: number; change24h: number }>>({});
   const [refreshing, setRefreshing] = useState(false);
 
   // 初始化用户偏好配置与后台状态监听
@@ -153,29 +111,21 @@ export default function App() {
     }
   }, [assetRepo, txRepo]);
 
-  // 初始化种子数据
+  // 初始化数据库与数据迁移
   const initSeedData = useCallback(async () => {
     try {
+      await settingsRepo.setRawValue('initial_seed_done', 'true');
+      // 数据迁移：若存在无平台后缀的旧 assetId，平滑升级为 symbol_platform
       const existingAssets = await assetRepo.findAll();
-      if (existingAssets.length === 0) {
-        for (const a of INITIAL_DEMO_ASSETS) {
-          await assetRepo.insert(a);
-        }
-        for (const t of INITIAL_DEMO_TXS) {
-          await txRepo.insert(t);
-        }
-      } else {
-        // 数据迁移：若存在无平台后缀的旧 assetId，平滑升级为 symbol_platform
-        for (const a of existingAssets) {
-          if (!a.id.includes('_')) {
-            const newId = `${a.symbol.toLowerCase()}_${a.platform.toLowerCase()}`;
-            await assetRepo.delete(a.id);
-            await assetRepo.insert({ ...a, id: newId });
-            const txs = await txRepo.findByAssetId(a.id);
-            for (const tx of txs) {
-              await txRepo.delete(tx.id);
-              await txRepo.insert({ ...tx, assetId: newId });
-            }
+      for (const a of existingAssets) {
+        if (!a.id.includes('_')) {
+          const newId = `${a.symbol.toLowerCase()}_${a.platform.toLowerCase()}`;
+          await assetRepo.delete(a.id);
+          await assetRepo.insert({ ...a, id: newId });
+          const txs = await txRepo.findByAssetId(a.id);
+          for (const tx of txs) {
+            await txRepo.delete(tx.id);
+            await txRepo.insert({ ...tx, assetId: newId });
           }
         }
       }
@@ -183,7 +133,7 @@ export default function App() {
     } catch (err) {
       console.warn('Init seed data error:', err);
     }
-  }, [assetRepo, txRepo, reloadData]);
+  }, [assetRepo, txRepo, settingsRepo, reloadData]);
 
   useEffect(() => {
     initSeedData();
@@ -234,7 +184,9 @@ export default function App() {
     const list: AssetHolding[] = [];
 
     for (const asset of assets) {
-      const txs = transactions.filter((t) => t.assetId === asset.id);
+      const txs = transactions.filter(
+        (t) => t.assetId === asset.id && (!asset.platform || t.platform === asset.platform)
+      );
       const cur = marketPrices[asset.id] || marketPrices[asset.symbol.toLowerCase()] || { price: 0, change24h: 0 };
       try {
         const holding = PnLEngine.calculateHoldingFromTransactions(
@@ -255,10 +207,16 @@ export default function App() {
     return { summary: portfolio, holdings: list };
   }, [assets, transactions, marketPrices]);
 
-  const openAddModal = (type: TransactionType, symbol = 'BTC', platform: PlatformType = 'Binance') => {
+  const openAddModal = (
+    type: TransactionType,
+    symbol = 'BTC',
+    platform: PlatformType = 'Binance',
+    lockAsset = false
+  ) => {
     setModalType(type);
     setModalSymbol(symbol);
     setModalPlatform(platform);
+    setModalLockAsset(lockAsset);
     setModalVisible(true);
   };
 
@@ -294,6 +252,9 @@ export default function App() {
   };
 
   const handleDataResetOrImported = async () => {
+    setAssets([]);
+    setTransactions([]);
+    setMarketPrices({});
     await reloadData();
     await refreshPrices();
   };
@@ -370,6 +331,8 @@ export default function App() {
         initialType={modalType}
         initialSymbol={modalSymbol}
         initialPlatform={modalPlatform}
+        lockAsset={modalLockAsset}
+        holdings={holdings}
         language={currentLanguage}
         onClose={() => setModalVisible(false)}
         onSuccess={handleTransactionSuccess}
@@ -396,7 +359,7 @@ export default function App() {
         language={currentLanguage}
         onClose={() => setDetailVisible(false)}
         onOpenAddTransaction={(type, symbol, platform) => {
-          openAddModal(type, symbol, platform);
+          openAddModal(type, symbol, platform, true);
         }}
         txRepo={txRepo}
         exchangeService={defaultExchangeService}

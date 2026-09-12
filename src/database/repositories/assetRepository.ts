@@ -81,4 +81,9 @@ export class AssetRepository {
     const result = await this.db.run(sql, [id]);
     return result.changes > 0;
   }
+
+  public async deleteAll(): Promise<void> {
+    const sql = `DELETE FROM assets;`;
+    await this.db.run(sql);
+  }
 }

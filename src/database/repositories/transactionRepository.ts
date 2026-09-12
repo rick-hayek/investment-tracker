@@ -98,4 +98,9 @@ export class TransactionRepository {
     const result = await this.db.run(sql, [assetId]);
     return result.changes;
   }
+
+  public async deleteAll(): Promise<void> {
+    const sql = `DELETE FROM transactions;`;
+    await this.db.run(sql);
+  }
 }

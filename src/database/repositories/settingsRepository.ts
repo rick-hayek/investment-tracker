@@ -66,4 +66,31 @@ export class SettingsRepository {
     await this.db.run(`DELETE FROM settings WHERE key = ?;`, ['user_settings']);
     return { ...DEFAULT_USER_SETTINGS };
   }
+
+  /**
+   * 获取指定原始 key 的配置值
+   */
+  public async getRawValue(key: string): Promise<string | null> {
+    try {
+      const row = await this.db.get<{ key: string; value: string }>(
+        `SELECT value FROM settings WHERE key = ?;`,
+        [key]
+      );
+      return row ? row.value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 写入指定原始 key 的配置值
+   */
+  public async setRawValue(key: string, value: string): Promise<void> {
+    const sql = `
+      INSERT INTO settings (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+    `;
+    await this.db.run(sql, [key, value]);
+  }
 }

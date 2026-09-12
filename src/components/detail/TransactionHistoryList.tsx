@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Transaction, CurrencyType } from '../../domain/types';
+import { Transaction, CurrencyType, PlatformType } from '../../domain/types';
 import { formatCurrencyValue } from '../../domain/currency';
 import { LanguageType, t } from '../../i18n';
 
 export interface TransactionHistoryListProps {
   transactions: Transaction[];
+  platform?: PlatformType;
   currentPrice: number;
   averageCost: number;
   currency: CurrencyType;
@@ -14,13 +15,19 @@ export interface TransactionHistoryListProps {
 
 export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
   transactions,
+  platform,
   currentPrice,
   averageCost,
   currency,
   language = 'zh',
 }) => {
+  // 严格过滤仅属于当前平台的交易
+  const filtered = platform
+    ? transactions.filter((tx) => tx.platform === platform)
+    : transactions;
+
   // 按成交时间降序排列 (最新在前)
-  const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
+  const sorted = [...filtered].sort((a, b) => b.timestamp - a.timestamp);
 
   if (sorted.length === 0) {
     return (
