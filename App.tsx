@@ -18,6 +18,7 @@ import { TotalPortfolioCard } from './src/components/portfolio/TotalPortfolioCar
 import { AssetList } from './src/components/portfolio/AssetList';
 import { PortfolioAllocationModal } from './src/components/portfolio/PortfolioAllocationModal';
 import { AppDrawer } from './src/components/drawer/AppDrawer';
+import { AssetDetailScreen } from './src/components/detail';
 import { defaultExchangeService } from './src/services/exchangeService';
 import { useMarketPoll } from './src/services/useMarketPoll';
 
@@ -76,6 +77,10 @@ export default function App() {
 
   // 资产配比统计弹窗
   const [allocationModalVisible, setAllocationModalVisible] = useState(false);
+
+  // 投资品详情全屏视图状态
+  const [selectedHolding, setSelectedHolding] = useState<AssetHolding | null>(null);
+  const [detailVisible, setDetailVisible] = useState(false);
 
   // 数据库实体数据
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -208,6 +213,11 @@ export default function App() {
     await refreshPrices();
   };
 
+  const activeDetailHolding = useMemo(() => {
+    if (!selectedHolding) return null;
+    return holdings.find((h) => h.assetId === selectedHolding.assetId) || selectedHolding;
+  }, [holdings, selectedHolding]);
+
   // 屏幕左边缘右滑手势侦听器 (Edge Swipe)
   const edgeSwipeResponder = useRef(
     PanResponder.create({
@@ -257,7 +267,10 @@ export default function App() {
         currency={baseCurrency}
         refreshing={refreshing}
         onRefresh={onManualRefresh}
-        onPressAsset={(holding) => openAddModal('BUY', holding.symbol, holding.platform || 'Binance')}
+        onPressAsset={(holding) => {
+          setSelectedHolding(holding);
+          setDetailVisible(true);
+        }}
         onPressAdd={() => openAddModal('BUY')}
         ListHeaderComponent={
           <View>
@@ -304,6 +317,19 @@ export default function App() {
         holdings={holdings}
         totalMarketValue={summary.totalMarketValue}
         currency={baseCurrency}
+      />
+
+      {/* 投资品详情走势与流水全屏页面 */}
+      <AssetDetailScreen
+        visible={detailVisible}
+        holding={activeDetailHolding}
+        currency={baseCurrency}
+        onClose={() => setDetailVisible(false)}
+        onOpenAddTransaction={(type, symbol, platform) => {
+          openAddModal(type, symbol, platform);
+        }}
+        txRepo={txRepo}
+        exchangeService={defaultExchangeService}
       />
 
       {/* 左侧滑动边栏抽屉 */}
