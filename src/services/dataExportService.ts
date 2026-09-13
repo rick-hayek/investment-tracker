@@ -2,23 +2,25 @@ import { Share } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import { Asset, Transaction, UserSettings } from '../domain/types';
+import { Asset, Transaction, UserSettings, Deposit } from '../domain/types';
 
 export interface BackupData {
   version: string;
   exportedAt: number;
   assets: Asset[];
   transactions: Transaction[];
+  deposits?: Deposit[];
   settings?: UserSettings;
 }
 
 export class DataExportService {
   /**
-   * 将交易流水格式化为标准 RFC 4180 CSV 字符串
+   * 将交易流水与本金流水格式化为标准 RFC 4180 CSV 字符串
    */
   public static exportTransactionsToCSV(
     transactions: Transaction[],
-    assets: Asset[] = []
+    assets: Asset[] = [],
+    deposits: Deposit[] = []
   ): string {
     const assetMap = new Map<string, Asset>();
     for (const a of assets) {
@@ -73,22 +75,45 @@ export class DataExportService {
       ].join(',');
     });
 
-    return [headers.join(','), ...rows].join('\n');
+    const depositRows = deposits.map((d) => {
+      const isDep = !d.type || d.type === 'DEPOSIT';
+      const typeStr = isDep ? 'DEPOSIT' : 'WITHDRAW';
+      const dateTime = new Date(d.timestamp).toISOString();
+      return [
+        escapeCSV(d.id),
+        escapeCSV(`deposit_${d.platform.toLowerCase()}_${(d.currency || 'USDT').toLowerCase()}`),
+        escapeCSV(d.currency || 'USDT'),
+        escapeCSV(d.platform),
+        escapeCSV(typeStr),
+        escapeCSV(d.amount),
+        escapeCSV(1),
+        escapeCSV(d.amount.toFixed(4)),
+        escapeCSV(0),
+        escapeCSV(d.currency || 'USDT'),
+        escapeCSV(d.timestamp),
+        escapeCSV(dateTime),
+        escapeCSV(d.notes || ''),
+      ].join(',');
+    });
+
+    return [headers.join(','), ...rows, ...depositRows].join('\n');
   }
 
   /**
-   * 将系统核心数据序列化为 JSON 备份包
+   * 将系统核心数据（含代币持仓、交易记录与本金流水）序列化为 JSON 备份包
    */
   public static exportToJSONBackup(
     assets: Asset[],
     transactions: Transaction[],
-    settings?: UserSettings
+    settings?: UserSettings,
+    deposits: Deposit[] = []
   ): string {
     const backup: BackupData = {
       version: '1.0',
       exportedAt: Date.now(),
       assets,
       transactions,
+      deposits,
       settings,
     };
     return JSON.stringify(backup, null, 2);
@@ -131,6 +156,29 @@ export class DataExportService {
         }
       }
 
+      // 验证本金记录格式 (可选字段，向下兼容旧备份)
+      const deposits: Deposit[] = [];
+      if (parsed.deposits !== undefined) {
+        if (!Array.isArray(parsed.deposits)) {
+          return { success: false, error: '备份数据中 deposits 格式无效' };
+        }
+        for (const d of parsed.deposits) {
+          if (!d.id || !d.platform || typeof d.amount !== 'number') {
+            return { success: false, error: `本金记录损坏，缺失关键字段: ${JSON.stringify(d)}` };
+          }
+          deposits.push({
+            id: d.id,
+            type: d.type === 'WITHDRAW' ? 'WITHDRAW' : 'DEPOSIT',
+            platform: d.platform,
+            currency: d.currency || 'USDT',
+            amount: d.amount,
+            timestamp: Number(d.timestamp) || Date.now(),
+            notes: d.notes || undefined,
+            createdAt: Number(d.createdAt) || Date.now(),
+          });
+        }
+      }
+
       return {
         success: true,
         data: {
@@ -138,6 +186,7 @@ export class DataExportService {
           exportedAt: Number(parsed.exportedAt) || Date.now(),
           assets: parsed.assets,
           transactions: parsed.transactions,
+          deposits,
           settings: parsed.settings,
         },
       };
@@ -202,6 +251,7 @@ export class DataExportService {
     data?: {
       assets: Asset[];
       transactions: Transaction[];
+      deposits: Deposit[];
     };
     error?: string;
     count?: number;
@@ -233,7 +283,7 @@ export class DataExportService {
     if (symbolIdx === -1 || typeIdx === -1 || amountIdx === -1 || priceIdx === -1) {
       return {
         success: false,
-        error: 'CSV 表头缺少必需列，需要包含: Symbol, Type (BUY/SELL), Amount, Price',
+        error: 'CSV 表头缺少必需列，需要包含: Symbol, Type (BUY/SELL/DEPOSIT/WITHDRAW), Amount, Price',
       };
     }
 
@@ -246,6 +296,7 @@ export class DataExportService {
 
     const assetMap = new Map<string, Asset>();
     const transactions: Transaction[] = [];
+    const deposits: Deposit[] = [];
 
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r];
@@ -255,10 +306,10 @@ export class DataExportService {
       if (!rawSymbol) continue;
 
       const rawType = row[typeIdx]?.trim().toUpperCase();
-      if (rawType !== 'BUY' && rawType !== 'SELL') {
+      if (rawType !== 'BUY' && rawType !== 'SELL' && rawType !== 'DEPOSIT' && rawType !== 'WITHDRAW') {
         return {
           success: false,
-          error: `第 ${r + 1} 行交易类型无效: "${row[typeIdx]}"，必须为 BUY 或 SELL`,
+          error: `第 ${r + 1} 行交易类型无效: "${row[typeIdx]}"，必须为 BUY, SELL, DEPOSIT 或 WITHDRAW`,
         };
       }
 
@@ -297,36 +348,49 @@ export class DataExportService {
         }
       }
 
-      const assetId = `${rawSymbol.toLowerCase()}_${platform.toLowerCase()}`;
-      if (!assetMap.has(assetId)) {
-        assetMap.set(assetId, {
-          id: assetId,
-          symbol: rawSymbol,
-          name: rawSymbol,
+      const rowId = (idIdx !== -1 && row[idIdx]?.trim()) || `csv_${Date.now()}_${r}`;
+
+      if (rawType === 'DEPOSIT' || rawType === 'WITHDRAW') {
+        deposits.push({
+          id: rowId,
+          type: rawType,
           platform: platform as any,
+          currency: (rawSymbol === 'USDC' ? 'USDC' : 'USDT') as any,
+          amount,
+          timestamp,
+          notes,
+          createdAt: Date.now(),
+        });
+      } else {
+        const assetId = `${rawSymbol.toLowerCase()}_${platform.toLowerCase()}`;
+        if (!assetMap.has(assetId)) {
+          assetMap.set(assetId, {
+            id: assetId,
+            symbol: rawSymbol,
+            name: rawSymbol,
+            platform: platform as any,
+            createdAt: Date.now(),
+          });
+        }
+
+        transactions.push({
+          id: rowId,
+          assetId,
+          type: rawType,
+          amount,
+          price,
+          fee: isNaN(fee) ? 0 : fee,
+          feeCurrency,
+          platform: platform as any,
+          timestamp,
+          notes,
           createdAt: Date.now(),
         });
       }
-
-      const txId = (idIdx !== -1 && row[idIdx]?.trim()) || `tx_csv_${Date.now()}_${r}`;
-
-      transactions.push({
-        id: txId,
-        assetId,
-        type: rawType,
-        amount,
-        price,
-        fee: isNaN(fee) ? 0 : fee,
-        feeCurrency,
-        platform: platform as any,
-        timestamp,
-        notes,
-        createdAt: Date.now(),
-      });
     }
 
-    if (transactions.length === 0) {
-      return { success: false, error: '未在 CSV 中检测到有效交易记录' };
+    if (transactions.length === 0 && deposits.length === 0) {
+      return { success: false, error: '未在 CSV 中检测到有效交易或出入金记录' };
     }
 
     return {
@@ -334,8 +398,9 @@ export class DataExportService {
       data: {
         assets: Array.from(assetMap.values()),
         transactions,
+        deposits,
       },
-      count: transactions.length,
+      count: transactions.length + deposits.length,
     };
   }
 

@@ -10,13 +10,14 @@ import {
   Switch,
   ActivityIndicator,
 } from 'react-native';
-import { CurrencyType, UserSettings, Asset, Transaction, CloudUserInfo, ThemeMode } from '../../domain/types';
+import { CurrencyType, UserSettings, Asset, Transaction, Deposit, ThemeMode } from '../../domain/types';
 import { CURRENCY_CONFIGS, getNextCurrency } from '../../domain/currency';
 import { defaultForexService, ForexRateInfo } from '../../services/forexService';
 import { DataExportService } from '../../services/dataExportService';
 import { SettingsRepository } from '../../database/repositories/settingsRepository';
 import { AssetRepository } from '../../database/repositories/assetRepository';
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
+import { DepositRepository } from '../../database/repositories/depositRepository';
 import { LanguageType, t, getLanguageName } from '../../i18n';
 import { useTheme } from '../../theme';
 import {
@@ -43,10 +44,12 @@ export interface SettingsScreenProps {
   onUpdateSettings: (partial: Partial<UserSettings>) => void;
   assets: Asset[];
   transactions: Transaction[];
+  deposits?: Deposit[];
   onDataResetOrImported: () => Promise<void>;
   settingsRepo: SettingsRepository;
   assetRepo: AssetRepository;
   txRepo: TransactionRepository;
+  depositRepo?: DepositRepository;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -56,10 +59,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onUpdateSettings,
   assets,
   transactions,
+  deposits = [],
   onDataResetOrImported,
   settingsRepo,
   assetRepo,
   txRepo,
+  depositRepo,
 }) => {
   const { colors, isDark } = useTheme();
   const [forexInfo, setForexInfo] = useState<ForexRateInfo>(defaultForexService.getRateInfo());
@@ -166,25 +171,27 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     onUpdateSettings({ privacyMode: val });
   };
 
-  // 导出 CSV 交易明细
+  // 导出 CSV 交易明细与出入金流水
   // 导出 CSV 到本地文件并调起系统保存面板
   const handleExportCSV = async () => {
-    if (transactions.length === 0) {
+    if (transactions.length === 0 && deposits.length === 0) {
       showAlert(
         t('common.error', lang),
-        lang === 'zh' ? '暂无交易流水记录可导出。' : 'No transactions to export.',
+        lang === 'zh' ? '暂无交易流水或本金出入金记录可导出。' : 'No transactions or deposits to export.',
         undefined,
         'warning'
       );
       return;
     }
-    const csvString = DataExportService.exportTransactionsToCSV(transactions, assets);
+    const currentDeposits = deposits.length > 0 ? deposits : (depositRepo ? await depositRepo.findAll() : []);
+    const csvString = DataExportService.exportTransactionsToCSV(transactions, assets, currentDeposits);
     await DataExportService.exportToFile('Investment_Transactions.csv', csvString, 'text/csv');
   };
 
-  // 导出 JSON 全量备份到本地文件并调起系统保存面板
+  // 导出 JSON 全量备份到本地文件并调起系统保存面板 (包含资产、交易明细与本金流水)
   const handleExportJSON = async () => {
-    const jsonString = DataExportService.exportToJSONBackup(assets, transactions, settings);
+    const currentDeposits = deposits.length > 0 ? deposits : (depositRepo ? await depositRepo.findAll() : []);
+    const jsonString = DataExportService.exportToJSONBackup(assets, transactions, settings, currentDeposits);
     await DataExportService.exportToFile('InvestmentTracker_Backup.json', jsonString, 'application/json');
   };
 
@@ -221,12 +228,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       const txCount = validation.data.transactions.length;
       const assetCount = validation.data.assets.length;
+      const depCount = validation.data.deposits?.length || 0;
+
+      const summaryZh = depCount > 0
+        ? `检测到备份文件，包含 ${assetCount} 个资产、${txCount} 条交易记录和 ${depCount} 笔本金充提记录。此操作将使用该备份覆盖当前数据库。`
+        : `检测到备份文件，包含 ${assetCount} 个资产和 ${txCount} 条交易记录。此操作将使用该备份覆盖当前数据库。`;
+      const summaryEn = depCount > 0
+        ? `Detected backup with ${assetCount} assets, ${txCount} transactions and ${depCount} capital records. This will overwrite current database.`
+        : `Detected backup with ${assetCount} assets and ${txCount} transactions. This will overwrite current database.`;
 
       showAlert(
         lang === 'zh' ? `确认从 ${filename} 恢复数据？` : `Restore from ${filename}?`,
-        lang === 'zh'
-          ? `检测到备份文件，包含 ${assetCount} 个资产和 ${txCount} 条交易记录。此操作将使用该备份覆盖当前数据库。`
-          : `Detected backup with ${assetCount} assets and ${txCount} transactions. This will overwrite current database.`,
+        lang === 'zh' ? summaryZh : summaryEn,
         [
           { text: t('common.cancel', lang), style: 'cancel' },
           {
@@ -235,13 +248,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             onPress: async () => {
               setImportLoading(true);
               try {
-                const existingAssets = await assetRepo.findAll();
-                for (const a of existingAssets) {
-                  await assetRepo.delete(a.id);
-                }
-                const existingTxs = await txRepo.findAll();
-                for (const t of existingTxs) {
-                  await txRepo.delete(t.id);
+                await assetRepo.deleteAll();
+                await txRepo.deleteAll();
+                if (depositRepo) {
+                  await depositRepo.deleteAll();
                 }
 
                 for (const a of validation.data!.assets) {
@@ -249,6 +259,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 }
                 for (const t of validation.data!.transactions) {
                   await txRepo.insert(t);
+                }
+                if (depositRepo && validation.data!.deposits) {
+                  for (const d of validation.data!.deposits) {
+                    await depositRepo.insert(d);
+                  }
                 }
 
                 if (validation.data!.settings) {
@@ -292,12 +307,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
     const txCount = validation.data.transactions.length;
     const assetCount = validation.data.assets.length;
+    const depCount = validation.data.deposits?.length || 0;
+
+    const csvSummaryZh = depCount > 0
+      ? `从文件解析出 ${assetCount} 个资产、${txCount} 条交易和 ${depCount} 笔出入金流水。将合并录入至您的本地投资组合中。`
+      : `从文件解析出 ${assetCount} 个资产种类和 ${txCount} 条交易记录。将合并录入至您的本地投资组合中。`;
+    const csvSummaryEn = depCount > 0
+      ? `Parsed ${assetCount} assets, ${txCount} transactions and ${depCount} deposits from file. These will be added to your portfolio.`
+      : `Parsed ${assetCount} assets and ${txCount} transactions from file. These will be added to your portfolio.`;
 
     showAlert(
       lang === 'zh' ? `确认导入文件: ${filename}？` : `Import File: ${filename}?`,
-      lang === 'zh'
-        ? `从文件解析出 ${assetCount} 个资产种类和 ${txCount} 条交易记录。将合并录入至您的本地投资组合中。`
-        : `Parsed ${assetCount} assets and ${txCount} transactions from file. These will be added to your portfolio.`,
+      lang === 'zh' ? csvSummaryZh : csvSummaryEn,
       [
         { text: t('common.cancel', lang), style: 'cancel' },
         {
@@ -315,12 +336,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               for (const t of validation.data!.transactions) {
                 await txRepo.insert(t);
               }
+              if (depositRepo && validation.data!.deposits) {
+                for (const d of validation.data!.deposits) {
+                  await depositRepo.insert(d);
+                }
+              }
               await onDataResetOrImported();
+              const successMsgZh = depCount > 0
+                ? `成功从 ${filename} 导入 ${txCount} 条交易与 ${depCount} 笔出入金流水！`
+                : `成功从 ${filename} 导入 ${txCount} 条交易记录！`;
+              const successMsgEn = depCount > 0
+                ? `Successfully imported ${txCount} transactions and ${depCount} deposits from ${filename}!`
+                : `Successfully imported ${txCount} transactions from ${filename}!`;
               showAlert(
                 t('common.success', lang),
-                lang === 'zh'
-                  ? `成功从 ${filename} 导入 ${txCount} 条交易记录！`
-                  : `Successfully imported ${txCount} transactions from ${filename}!`,
+                lang === 'zh' ? successMsgZh : successMsgEn,
                 undefined,
                 'success'
               );
@@ -400,20 +430,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {
             text: t('settings.cloudSyncConnectGoogle', lang),
             style: 'default',
-            onPress: async () => {
-              const mockGoogleUser: CloudUserInfo = {
-                email: 'rick.investor@gmail.com',
-                name: 'Rick',
-                connectedAt: Date.now(),
-              };
-              await onUpdateSettings({ cloudUser: mockGoogleUser });
+            onPress: () => {
               showAlert(
-                t('common.success', lang),
-                lang === 'zh'
-                  ? '已成功登录 Google 账号！已开启 Google Drive 云端同步，并在顶部显示您的账户信息。'
-                  : 'Successfully connected Google Drive! Cloud sync enabled and profile is now displayed.',
+                t('settings.cloudSyncPlaceholderTitle', lang),
+                t('settings.cloudSyncNotImplemented', lang),
                 undefined,
-                'success'
+                'info'
               );
             },
           },
@@ -440,6 +462,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             try {
               await txRepo.deleteAll();
               await assetRepo.deleteAll();
+              if (depositRepo) {
+                await depositRepo.deleteAll();
+              }
               await onDataResetOrImported();
               showAlert(t('common.success', lang), t('settings.clearDataSuccess', lang), undefined, 'success');
             } catch (err: any) {
@@ -590,7 +615,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
             {/* 云端同步 (Google Drive 授权登录与状态管理) */}
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.rowItem}
               onPress={handlePressCloudSync}
               activeOpacity={0.7}
@@ -609,7 +634,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </View>
             </TouchableOpacity>
 
-            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} /> */}
 
             {/* Clear All Data */}
             <TouchableOpacity

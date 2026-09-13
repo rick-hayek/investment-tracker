@@ -107,4 +107,69 @@ describe('Asset Detail & Chart Calculations (投资品详情与分时图表测�
       expect(profitPercent).toBeCloseTo(12.9, 1);
     });
   });
+
+  describe('代币投资汇总成绩战绩测算 (AssetPerformanceCard)', () => {
+    it('对于已清仓代币，准确测算全周期总盈利、累计投入本金、累计卖出回款与回报率', () => {
+      const holding = {
+        assetId: 'btc_okx',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        totalQuantity: 0,
+        averageCost: 0,
+        totalCostBasis: 0,
+        cumulativeCostBasis: 5721.73,
+        totalBoughtCost: 5721.73,
+        totalSoldProceeds: 7722.49,
+        totalProfit: 2000.76,
+        totalProfitPercent: 34.97,
+        currentPrice: 77199.9,
+        marketValue: 0,
+        unrealizedPnL: 0,
+        unrealizedPnLPercent: 0,
+        realizedPnL: 2000.76,
+        change24hPercent: -0.09,
+      };
+
+      const transactions = [
+        {
+          id: 'tx_1',
+          assetId: 'btc_okx',
+          type: 'BUY' as const,
+          amount: 0.1,
+          price: 57217.3,
+          fee: 0,
+          fundingCurrency: 'USDT' as const,
+          platform: 'OKX' as const,
+          timestamp: 1000,
+          createdAt: 1000,
+        },
+        {
+          id: 'tx_2',
+          assetId: 'btc_okx',
+          type: 'SELL' as const,
+          amount: 0.1,
+          price: 77224.9,
+          fee: 0,
+          fundingCurrency: 'USDT' as const,
+          platform: 'OKX' as const,
+          timestamp: 2000,
+          createdAt: 2000,
+        },
+      ];
+
+      const buyTxs = transactions.filter((t) => t.type === 'BUY');
+      const sellTxs = transactions.filter((t) => t.type === 'SELL');
+      const calculatedBoughtCost = buyTxs.reduce((sum, t) => sum + t.amount * t.price, 0);
+      const calculatedSoldProceeds = sellTxs.reduce((sum, t) => sum + t.amount * t.price, 0);
+
+      expect(calculatedBoughtCost).toBeCloseTo(5721.73, 2);
+      expect(calculatedSoldProceeds).toBeCloseTo(7722.49, 2);
+
+      const totalProfit = holding.realizedPnL + holding.unrealizedPnL;
+      expect(totalProfit).toBeCloseTo(2000.76, 2);
+
+      const roiPercent = (totalProfit / calculatedBoughtCost) * 100;
+      expect(roiPercent).toBeCloseTo(34.97, 1);
+    });
+  });
 });

@@ -24,6 +24,7 @@ export interface TotalPortfolioCardProps {
   language?: LanguageType;
   onPressBuy?: () => void;
   onPressSell?: () => void;
+  onPressDeposit?: () => void;
   onPressAnalysis: () => void;
   onPressCurrency?: () => void;
   onTogglePrivacy?: () => void;
@@ -38,6 +39,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
   language = 'zh',
   onPressBuy,
   onPressSell,
+  onPressDeposit,
   onPressAnalysis,
   onPressCurrency,
   onTogglePrivacy,
@@ -66,21 +68,26 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
 
   const isCumulative = pnlMode === 'CUMULATIVE';
   const displayAmountUSD = isCumulative
-    ? summary.totalUnrealizedPnL
+    ? summary.netProfit
     : daily24hMetrics.amountUSD;
   const displayPercent = isCumulative
-    ? summary.totalUnrealizedPnLPercent
+    ? (summary.netProfitPercent !== undefined && summary.netProfitPercent !== 0
+        ? summary.netProfitPercent
+        : (summary.totalNetProfitPercent || 0))
     : daily24hMetrics.percent;
 
   const isPositive = displayAmountUSD >= 0;
 
   // 生成 Sparkline 走势点阵
   const sparklineData = useMemo(() => {
-    if (summary.totalMarketValue <= 0 || holdings.length === 0) {
+    const base =
+      summary.totalPortfolioValueUSD !== undefined
+        ? summary.totalPortfolioValueUSD
+        : summary.totalMarketValue;
+    if (base <= 0 || holdings.length === 0) {
       return [];
     }
-    const base = summary.totalMarketValue;
-    const isUp = summary.totalUnrealizedPnL >= 0;
+    const isUp = isPositive;
     if (isUp) {
       return [
         base * 0.88,
@@ -104,7 +111,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
         base,
       ];
     }
-  }, [summary.totalMarketValue, summary.totalUnrealizedPnL, holdings.length]);
+  }, [summary.totalPortfolioValueUSD, summary.totalMarketValue, isPositive, holdings.length]);
 
   const togglePnlMode = () => {
     setPnlMode((prev) => (prev === 'CUMULATIVE' ? 'DAILY_24H' : 'CUMULATIVE'));
@@ -150,9 +157,15 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
         </View>
       </View>
 
-      {/* 大字号总金额 */}
+      {/* 大字号总金额 (持仓市值 + 现金本金储备) */}
       <Text style={[styles.totalAmount, { color: colors.textPrimary }]}>
-        {formatCurrencyValue(summary.totalMarketValue, currency, { privacyMode })}
+        {formatCurrencyValue(
+          summary.totalPortfolioValueUSD !== undefined
+            ? summary.totalPortfolioValueUSD
+            : summary.totalMarketValue,
+          currency,
+          { privacyMode }
+        )}
       </Text>
 
       {/* 盈亏胶囊指示器 */}
@@ -206,7 +219,7 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
             data={sparklineData}
             width={310}
             height={68}
-            isPositive={summary.totalUnrealizedPnL >= 0}
+            isPositive={isPositive}
           />
         </View>
       ) : (
@@ -339,3 +352,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+

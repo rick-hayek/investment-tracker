@@ -320,5 +320,82 @@ describe('PnLEngine (财务与盈亏计算引擎)', () => {
       expect(summary.netProfit).toBe(17000); // 13,000 + 4,000
       expect(summary.totalUnrealizedPnLPercent).toBeCloseTo(14.44, 1);
     });
+
+    it('清仓后代币持仓为0时，累计盈亏与投资回报率不应重置为0%', () => {
+      const asset = {
+        id: 'btc-1',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        platform: 'OKX' as const,
+        createdAt: 1000,
+      };
+
+      const transactions = [
+        // 充值后买入 0.1 BTC，成本 5,722.49
+        {
+          id: 'tx-buy',
+          assetId: 'btc-1',
+          type: 'BUY' as const,
+          amount: 0.1,
+          price: 57224.9,
+          fundingCurrency: 'USDT' as const,
+          platform: 'OKX' as const,
+          timestamp: 2000,
+          createdAt: 2000,
+        },
+        // 盈利后全部卖出，卖出价 77,224.9，回笼 7,722.49，实现利润 2,000
+        {
+          id: 'tx-sell',
+          assetId: 'btc-1',
+          type: 'SELL' as const,
+          amount: 0.1,
+          price: 77224.9,
+          fundingCurrency: 'USDT' as const,
+          platform: 'OKX' as const,
+          timestamp: 3000,
+          createdAt: 3000,
+        },
+      ];
+
+      const holding = PnLEngine.calculateHoldingFromTransactions(
+        asset,
+        transactions,
+        77224.9
+      );
+
+      // 持仓已清仓：浮动盈亏为 0
+      expect(holding.totalQuantity).toBe(0);
+      expect(holding.totalCostBasis).toBe(0);
+      expect(holding.marketValue).toBe(0);
+      expect(holding.unrealizedPnL).toBe(0);
+      expect(holding.unrealizedPnLPercent).toBe(0);
+
+      // 全周期累计成本、已实现盈亏与战绩回报率正确保留
+      expect(holding.cumulativeCostBasis).toBeCloseTo(5722.49, 2);
+      expect(holding.realizedPnL).toBeCloseTo(2000, 2);
+      expect(holding.totalProfit).toBeCloseTo(2000, 2);
+      expect(holding.totalProfitPercent).toBeCloseTo(34.95, 1);
+
+      // 组合汇总
+      const deposits = [
+        {
+          id: 'dep-1',
+          platform: 'OKX' as const,
+          currency: 'USDT' as const,
+          amount: 20000,
+          timestamp: 1000,
+          createdAt: 1000,
+        },
+      ];
+
+      const summary = PnLEngine.calculatePortfolioSummary([holding], deposits, transactions);
+
+      // 可用本金回笼后变为 20000 - 5722.49 + 7722.49 = 22000
+      expect(summary.totalPortfolioValueUSD).toBeCloseTo(22000, 2);
+      // 累计净利润 2,000
+      expect(summary.netProfit).toBeCloseTo(2000, 2);
+      // 累计回报率应为约 34.95%，绝不能是 0%
+      expect(summary.netProfitPercent).toBeCloseTo(34.95, 1);
+    });
   });
 });

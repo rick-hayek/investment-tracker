@@ -9,6 +9,7 @@ interface TransactionRow {
   price: number;
   fee: number | null;
   fee_currency: string | null;
+  funding_currency?: string | null;
   platform: string;
   timestamp: number;
   notes: string | null;
@@ -31,6 +32,7 @@ export class TransactionRepository {
       price: row.price,
       fee: row.fee !== null ? row.fee : 0,
       feeCurrency: row.fee_currency || undefined,
+      fundingCurrency: (row.funding_currency as any) || 'USDT',
       platform: row.platform as any,
       timestamp: row.timestamp,
       notes: row.notes || undefined,
@@ -41,8 +43,8 @@ export class TransactionRepository {
   public async insert(tx: Transaction): Promise<void> {
     const sql = `
       INSERT INTO transactions (
-        id, asset_id, type, amount, price, fee, fee_currency, platform, timestamp, notes, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        id, asset_id, type, amount, price, fee, fee_currency, funding_currency, platform, timestamp, notes, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `;
     await this.db.run(sql, [
       tx.id,
@@ -52,6 +54,7 @@ export class TransactionRepository {
       tx.price,
       tx.fee || 0,
       tx.feeCurrency || 'USD',
+      tx.fundingCurrency || 'USDT',
       tx.platform,
       tx.timestamp,
       tx.notes || null,
@@ -62,7 +65,7 @@ export class TransactionRepository {
   public async update(tx: Transaction): Promise<boolean> {
     const sql = `
       UPDATE transactions
-      SET asset_id = ?, type = ?, amount = ?, price = ?, fee = ?, fee_currency = ?, platform = ?, timestamp = ?, notes = ?
+      SET asset_id = ?, type = ?, amount = ?, price = ?, fee = ?, fee_currency = ?, funding_currency = ?, platform = ?, timestamp = ?, notes = ?
       WHERE id = ?;
     `;
     const result = await this.db.run(sql, [
@@ -72,6 +75,7 @@ export class TransactionRepository {
       tx.price,
       tx.fee !== undefined && tx.fee !== null ? tx.fee : 0,
       tx.feeCurrency || 'USD',
+      tx.fundingCurrency || 'USDT',
       tx.platform,
       tx.timestamp,
       tx.notes || null,

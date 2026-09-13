@@ -58,7 +58,7 @@ export const AssetDetailHeader: React.FC<AssetDetailHeaderProps> = ({
         </View>
       </View>
 
-      {/* 指标矩阵 (持仓均价、总成本、实时单价、24h涨跌) */}
+      {/* 指标矩阵 (持仓均价、持仓总成本、实时单价、24h涨跌) */}
       <View style={styles.metricsGrid}>
         <View style={styles.metricItem}>
           <Text style={styles.metricLabel}>{t('detail.costBasis', language)}</Text>

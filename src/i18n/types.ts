@@ -28,12 +28,20 @@ export interface TranslationDictionary {
     daily24h: string;
     buy: string;
     sell: string;
+    deposit: string;
+    cryptoHoldings: string;
+    cashReserves: string;
+    netProfit: string;
     analytics: string;
   };
   holdings: {
     title: string;
     addLink: string;
     emptyText: string;
+    capitalListTitle: string;
+    capitalDepositLink: string;
+    capitalAvailable: string;
+    emptyCapitalText: string;
   };
   settings: {
     title: string;
@@ -66,6 +74,7 @@ export interface TranslationDictionary {
     cloudSyncNow: string;
     cloudSyncSuccess: string;
     cloudSyncDisconnectedSuccess: string;
+    cloudSyncNotImplemented: string;
     importExportModalTitle: string;
     importExportModalDesc: string;
     exportSection: string;
@@ -141,6 +150,20 @@ export interface TranslationDictionary {
     txDatePlaceholder: string;
     useCurrentTime: string;
     invalidDateError: string;
+    deposit: string;
+    depositTitle: string;
+    confirmDeposit: string;
+    depositAmount: string;
+    selectCurrency: string;
+    fundingCurrency: string;
+    availableCapital: string;
+    insufficientCapital: string;
+    insufficientCapitalDesc: string;
+    goToDeposit: string;
+    depositSuccess: string;
+    depositNotesPlaceholder: string;
+    sellProceedsNote: string;
+    platformIsolationNotice: string;
   };
   detail: {
     currentHoldingValue: string;
@@ -151,12 +174,68 @@ export interface TranslationDictionary {
     transactionHistory: string;
     unrealized: string;
     realized: string;
+    realizedProfit: string;
+    realizedLoss: string;
+    buyExpenditure: string;
+    costAtSale: string;
     buyThisToken: string;
     sellThisToken: string;
     holdingQty: string;
+    performanceTitle: string;
+    totalProfit: string;
+    totalRoi: string;
+    totalBought: string;
+    totalSold: string;
+    closedPosition: string;
+    activePosition: string;
+    tradeStats: string;
   };
   privacy: {
     shieldTitle: string;
     shieldSubtitle: string;
   };
+  deposit: {
+    depositTab: string;
+    depositTitle: string;
+    targetPlatform: string;
+    withdrawTargetPlatform: string;
+    currency: string;
+    currentPlatformBalance: string;
+    depositAmount: string;
+    depositDate: string;
+    notes: string;
+    notesPlaceholder: string;
+    platformIsolationNotice: string;
+    confirmDeposit: string;
+    fundingCurrency: string;
+    insufficientCapital: string;
+    goToDeposit: string;
+    sellProceedsNotice: string;
+    depositAction: string;
+    withdrawTab: string;
+    withdrawTitle: string;
+    withdrawAmount: string;
+    confirmWithdraw: string;
+    withdrawExceed: string;
+    withdrawSuccess: string;
+    maxWithdraw: string;
+  };
+  capitalDetail: {
+    availableCapital: string;
+    totalDeposited: string;
+    totalWithdrawn: string;
+    historyTitle: string;
+    allFlowsTitle: string;
+    emptyHistory: string;
+    emptyAllFlows: string;
+    filterTransfers: string;
+    filterAll: string;
+    buyBadge: string;
+    sellBadge: string;
+    depositAction: string;
+    withdrawAction: string;
+    deleteRecordConfirm: string;
+    deleteRecordDesc: string;
+  };
 }
+

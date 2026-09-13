@@ -68,6 +68,26 @@ describe('i18n Internationalization Suite', () => {
     expect(t('detail.costBasis', 'en')).toBe('Average Cost Basis');
   });
 
+  it('translates deposit and capital isolation views', () => {
+    expect(t('deposit.depositTab', 'zh')).toBe('入金');
+    expect(t('deposit.depositTab', 'en')).toBe('Deposit');
+    expect(t('deposit.depositTitle', 'zh')).toBe('本金入金');
+    expect(t('deposit.depositTitle', 'en')).toBe('Deposit Capital');
+    expect(t('deposit.fundingCurrency', 'zh')).toBe('支付本金币种');
+    expect(t('deposit.fundingCurrency', 'en')).toBe('Payment Currency');
+    expect(t('deposit.confirmDeposit', 'zh')).toBe('确认入金');
+    expect(t('deposit.currentPlatformBalance', 'zh')).toBe('当前平台可用');
+    expect(t('deposit.currentPlatformBalance', 'zh', { platform: 'OKX' })).toBe('当前平台OKX可用');
+    expect(t('deposit.currentPlatformBalance', 'en', { platform: 'OKX' })).toBe('OKX Available');
+
+    expect(t('holdings.capitalListTitle', 'zh')).toBe('本金列表');
+    expect(t('holdings.capitalListTitle', 'en')).toBe('Capital List');
+    expect(t('holdings.capitalDepositLink', 'zh')).toBe('+ 入金');
+    expect(t('holdings.capitalDepositLink', 'en')).toBe('+ Deposit');
+    expect(t('holdings.capitalAvailable', 'zh')).toBe('可用本金');
+    expect(t('holdings.capitalAvailable', 'en')).toBe('Available');
+  });
+
   it('supports interpolation parameter replacement', () => {
     // Custom test on path with parameter
     const sampleText = t('custom.key', 'zh');

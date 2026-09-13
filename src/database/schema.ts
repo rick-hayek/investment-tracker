@@ -2,7 +2,7 @@
  * SQLite Database Schema and Migration Queries
  */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const CREATE_ASSETS_TABLE = `
 CREATE TABLE IF NOT EXISTS assets (
@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     price REAL NOT NULL CHECK(price >= 0),
     fee REAL DEFAULT 0,
     fee_currency TEXT DEFAULT 'USD',
+    funding_currency TEXT DEFAULT 'USDT',
     platform TEXT NOT NULL,
     timestamp INTEGER NOT NULL,
     notes TEXT,
@@ -34,6 +35,23 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 export const CREATE_TRANSACTIONS_INDEX = `
 CREATE INDEX IF NOT EXISTS idx_tx_asset_timestamp ON transactions(asset_id, timestamp DESC);
+`;
+
+export const CREATE_DEPOSITS_TABLE = `
+CREATE TABLE IF NOT EXISTS deposits (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL DEFAULT 'DEPOSIT' CHECK(type IN ('DEPOSIT', 'WITHDRAW')),
+    platform TEXT NOT NULL,
+    currency TEXT NOT NULL CHECK(currency IN ('USDT', 'USDC')),
+    amount REAL NOT NULL CHECK(amount > 0),
+    timestamp INTEGER NOT NULL,
+    notes TEXT,
+    created_at INTEGER NOT NULL
+);
+`;
+
+export const CREATE_DEPOSITS_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_deposits_platform ON deposits(platform, timestamp DESC);
 `;
 
 export const CREATE_PRICE_CACHE_TABLE = `
@@ -60,7 +78,10 @@ export const ALL_MIGRATIONS = [
   CREATE_ASSETS_TABLE,
   CREATE_TRANSACTIONS_TABLE,
   CREATE_TRANSACTIONS_INDEX,
+  CREATE_DEPOSITS_TABLE,
+  CREATE_DEPOSITS_INDEX,
   CREATE_PRICE_CACHE_TABLE,
   CREATE_SETTINGS_TABLE,
 ];
+
 

@@ -60,10 +60,10 @@ export function t(
   }
 
   if (!params) {
-    return current;
+    return current.replace(/\{(\w+)\}\s*/g, '').trim();
   }
 
   return current.replace(/\{(\w+)\}/g, (_, k) => {
-    return params[k] !== undefined ? String(params[k]) : `{${k}}`;
+    return params[k] !== undefined ? String(params[k]) : '';
   });
 }

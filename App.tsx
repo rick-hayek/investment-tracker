@@ -10,18 +10,20 @@ import {
   AppState,
   AppStateStatus,
 } from 'react-native';
-import { Asset, Transaction, AssetHolding, TransactionType, PlatformType, CurrencyType, UserSettings } from './src/domain/types';
+import { Asset, Transaction, AssetHolding, TransactionType, PlatformType, CurrencyType, UserSettings, Deposit, DepositCurrency, CapitalOperationType } from './src/domain/types';
 import { PnLEngine } from './src/domain/calculations/pnlEngine';
-import { getNextCurrency } from './src/domain/currency';
+import { getNextCurrency, formatCurrencyValue } from './src/domain/currency';
 import { AssetRepository } from './src/database/repositories/assetRepository';
 import { TransactionRepository } from './src/database/repositories/transactionRepository';
+import { DepositRepository } from './src/database/repositories/depositRepository';
 import { SettingsRepository, DEFAULT_USER_SETTINGS } from './src/database/repositories/settingsRepository';
-import { AddTransactionModal } from './src/components/transactions';
+import { AddTransactionModal, DepositModal } from './src/components/transactions';
 import { TotalPortfolioCard } from './src/components/portfolio/TotalPortfolioCard';
 import { AssetList } from './src/components/portfolio/AssetList';
+import { CapitalList, CapitalItem } from './src/components/portfolio/CapitalList';
 import { PortfolioAllocationModal } from './src/components/portfolio/PortfolioAllocationModal';
 import { AppDrawer } from './src/components/drawer/AppDrawer';
-import { AssetDetailScreen } from './src/components/detail';
+import { AssetDetailScreen, CapitalDetailScreen } from './src/components/detail';
 import { SettingsScreen } from './src/components/settings';
 import { PrivacyShield } from './src/components/common/PrivacyShield';
 import { defaultExchangeService } from './src/services/exchangeService';
@@ -35,6 +37,7 @@ import { extractBaseSymbol } from './src/services/symbolMapper';
 export default function App() {
   const assetRepo = useMemo(() => new AssetRepository(), []);
   const txRepo = useMemo(() => new TransactionRepository(), []);
+  const depositRepo = useMemo(() => new DepositRepository(), []);
   const settingsRepo = useMemo(() => new SettingsRepository(), []);
 
   // 用户偏好设置与后台遮罩状态
@@ -54,6 +57,12 @@ export default function App() {
   const [modalLockAsset, setModalLockAsset] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
+  // 交易所本金充提独立弹窗状态
+  const [depositModalVisible, setDepositModalVisible] = useState(false);
+  const [depositModalType, setDepositModalType] = useState<CapitalOperationType>('DEPOSIT');
+  const [depositModalPlatform, setDepositModalPlatform] = useState<PlatformType>('OKX');
+  const [depositModalCurrency, setDepositModalCurrency] = useState<DepositCurrency>('USDT');
+
   // 资产配比统计弹窗
   const [allocationModalVisible, setAllocationModalVisible] = useState(false);
 
@@ -64,6 +73,7 @@ export default function App() {
   // 数据库实体数据
   const [assets, setAssets] = useState<Asset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [marketPrices, setMarketPrices] = useState<Record<string, { price: number; change24h: number }>>({});
   const [refreshing, setRefreshing] = useState(false);
 
@@ -107,12 +117,14 @@ export default function App() {
     try {
       const loadedAssets = await assetRepo.findAll();
       const loadedTxs = await txRepo.findAll();
+      const loadedDeposits = await depositRepo.findAll();
       setAssets(loadedAssets);
       setTransactions(loadedTxs);
+      setDeposits(loadedDeposits);
     } catch (err) {
       console.warn('Reload data error:', err);
     }
-  }, [assetRepo, txRepo]);
+  }, [assetRepo, txRepo, depositRepo]);
 
   // 初始化数据库与数据迁移
   const initSeedData = useCallback(async () => {
@@ -132,11 +144,34 @@ export default function App() {
           }
         }
       }
+
+      // 平滑兼容：若已有旧交易但暂无充值流水，为对应平台注入初始本金流水
+      const loadedTxs = await txRepo.findAll();
+      const loadedDeposits = await depositRepo.findAll();
+      if (loadedDeposits.length === 0 && loadedTxs.length > 0) {
+        const platformsWithBuy = new Set(loadedTxs.filter((t) => t.type === 'BUY').map((t) => t.platform));
+        for (const plat of platformsWithBuy) {
+          const platTxs = loadedTxs.filter((t) => t.platform === plat && t.type === 'BUY');
+          const totalSpent = platTxs.reduce((sum, t) => sum + t.amount * t.price, 0);
+          const initialFund = Math.ceil(totalSpent + 10000);
+          const earliestTime = Math.min(...platTxs.map((t) => t.timestamp));
+          await depositRepo.insert({
+            id: `dep_seed_${plat.toLowerCase()}_${Date.now()}`,
+            platform: plat,
+            currency: 'USDT',
+            amount: initialFund,
+            timestamp: earliestTime - 3600000,
+            notes: '系统初始可用本金',
+            createdAt: Date.now(),
+          });
+        }
+      }
+
       await reloadData();
     } catch (err) {
       console.warn('Init seed data error:', err);
     }
-  }, [assetRepo, txRepo, settingsRepo, reloadData]);
+  }, [assetRepo, txRepo, depositRepo, settingsRepo, reloadData]);
 
   useEffect(() => {
     initSeedData();
@@ -206,12 +241,12 @@ export default function App() {
       }
     }
 
-    const portfolio = PnLEngine.calculatePortfolioSummary(list);
+    const portfolio = PnLEngine.calculatePortfolioSummary(list, deposits, transactions);
     return { summary: portfolio, holdings: list };
-  }, [assets, transactions, marketPrices]);
+  }, [assets, transactions, deposits, marketPrices]);
 
   const openAddModal = (
-    type: TransactionType,
+    type: TransactionType = 'BUY',
     symbol = 'BTC',
     platform: PlatformType = 'Binance',
     lockAsset = false
@@ -222,6 +257,17 @@ export default function App() {
     setModalPlatform(platform);
     setModalLockAsset(lockAsset);
     setModalVisible(true);
+  };
+
+  const openDepositModal = (
+    type: CapitalOperationType = 'DEPOSIT',
+    platform: PlatformType = 'OKX',
+    currency: DepositCurrency = 'USDT'
+  ) => {
+    setDepositModalType(type);
+    setDepositModalPlatform(platform);
+    setDepositModalCurrency(currency);
+    setDepositModalVisible(true);
   };
 
   const openEditModal = (tx: Transaction) => {
@@ -279,6 +325,7 @@ export default function App() {
   const handleDataResetOrImported = async () => {
     setAssets([]);
     setTransactions([]);
+    setDeposits([]);
     setMarketPrices({});
     await reloadData();
     await refreshPrices();
@@ -303,6 +350,7 @@ export default function App() {
         refreshing={refreshing}
         onManualRefresh={onManualRefresh}
         openAddModal={openAddModal}
+        openDepositModal={openDepositModal}
         openEditModal={openEditModal}
         editingTransaction={editingTransaction}
         handleDeleteTransaction={handleDeleteTransaction}
@@ -315,6 +363,11 @@ export default function App() {
         modalPlatform={modalPlatform}
         modalLockAsset={modalLockAsset}
         setModalVisible={setModalVisible}
+        depositModalVisible={depositModalVisible}
+        depositModalType={depositModalType}
+        depositModalPlatform={depositModalPlatform}
+        depositModalCurrency={depositModalCurrency}
+        setDepositModalVisible={setDepositModalVisible}
         handleTransactionSuccess={handleTransactionSuccess}
         allocationModalVisible={allocationModalVisible}
         setAllocationModalVisible={setAllocationModalVisible}
@@ -326,11 +379,13 @@ export default function App() {
         setSettingsVisible={setSettingsVisible}
         assets={assets}
         transactions={transactions}
+        deposits={deposits}
         handleDataResetOrImported={handleDataResetOrImported}
         isBackgroundBlocked={isBackgroundBlocked}
         isPolling={isPolling}
         assetRepo={assetRepo}
         txRepo={txRepo}
+        depositRepo={depositRepo}
         settingsRepo={settingsRepo}
       />
     </ThemeProvider>
@@ -348,7 +403,17 @@ interface AppContentProps {
   summary: any;
   refreshing: boolean;
   onManualRefresh: () => Promise<void>;
-  openAddModal: (type: TransactionType, symbol?: string, platform?: PlatformType, lockAsset?: boolean) => void;
+  openAddModal: (
+    type?: TransactionType,
+    symbol?: string,
+    platform?: PlatformType,
+    lockAsset?: boolean
+  ) => void;
+  openDepositModal: (
+    type?: CapitalOperationType,
+    platform?: PlatformType,
+    currency?: DepositCurrency
+  ) => void;
   openEditModal: (tx: Transaction) => void;
   editingTransaction: Transaction | null;
   handleDeleteTransaction: (txId: string) => Promise<void>;
@@ -361,6 +426,11 @@ interface AppContentProps {
   modalPlatform: PlatformType;
   modalLockAsset: boolean;
   setModalVisible: (open: boolean) => void;
+  depositModalVisible: boolean;
+  depositModalType: CapitalOperationType;
+  depositModalPlatform: PlatformType;
+  depositModalCurrency: DepositCurrency;
+  setDepositModalVisible: (open: boolean) => void;
   handleTransactionSuccess: () => Promise<void>;
   allocationModalVisible: boolean;
   setAllocationModalVisible: (open: boolean) => void;
@@ -372,11 +442,13 @@ interface AppContentProps {
   setSettingsVisible: (open: boolean) => void;
   assets: Asset[];
   transactions: Transaction[];
+  deposits: Deposit[];
   handleDataResetOrImported: () => Promise<void>;
   isBackgroundBlocked: boolean;
   isPolling: boolean;
   assetRepo: AssetRepository;
   txRepo: TransactionRepository;
+  depositRepo: DepositRepository;
   settingsRepo: SettingsRepository;
 }
 
@@ -392,6 +464,7 @@ function AppContent({
   refreshing,
   onManualRefresh,
   openAddModal,
+  openDepositModal,
   openEditModal,
   editingTransaction,
   handleDeleteTransaction,
@@ -404,6 +477,11 @@ function AppContent({
   modalPlatform,
   modalLockAsset,
   setModalVisible,
+  depositModalVisible,
+  depositModalType,
+  depositModalPlatform,
+  depositModalCurrency,
+  setDepositModalVisible,
   handleTransactionSuccess,
   allocationModalVisible,
   setAllocationModalVisible,
@@ -415,14 +493,96 @@ function AppContent({
   setSettingsVisible,
   assets,
   transactions,
+  deposits,
   handleDataResetOrImported,
   isBackgroundBlocked,
   isPolling,
   assetRepo,
   txRepo,
+  depositRepo,
   settingsRepo,
 }: AppContentProps) {
   const { colors, isDark } = useTheme();
+
+  // 本金列表数据计算：动态收集实际产生充值、交易或有非零余额的交易平台与币种，绝不硬编码
+  const capitalItems: CapitalItem[] = useMemo(() => {
+    const currencies: DepositCurrency[] = ['USDT', 'USDC'];
+    const activePlatformSet = new Set<PlatformType>();
+
+    // 1. 从充值记录中提取活跃平台
+    for (const d of deposits) {
+      if (d.platform) activePlatformSet.add(d.platform);
+    }
+    // 2. 从交易流水中提取活跃平台
+    for (const tx of transactions) {
+      if (tx.platform && tx.fundingCurrency) activePlatformSet.add(tx.platform);
+    }
+    // 3. 从结算平台余额中提取非零平台
+    if (summary?.platformBalances) {
+      for (const [p, bal] of Object.entries(summary.platformBalances) as [
+        PlatformType,
+        { usdt: number; usdc: number; totalUSD: number }
+      ][]) {
+        if (Math.abs(bal?.usdt || 0) > 0.00001 || Math.abs(bal?.usdc || 0) > 0.00001) {
+          activePlatformSet.add(p);
+        }
+      }
+    }
+
+    const items: CapitalItem[] = [];
+
+    // 4. 针对实际活跃的平台，按币种判断是否有充值记录、流水记录或非零余额
+    for (const p of activePlatformSet) {
+      const platBal = summary?.platformBalances?.[p];
+      for (const c of currencies) {
+        const bal = c === 'USDC' ? (platBal?.usdc ?? 0) : (platBal?.usdt ?? 0);
+        const hasDeposit = deposits.some((d) => d.platform === p && d.currency === c);
+        const hasTx = transactions.some((t) => t.platform === p && t.fundingCurrency === c);
+
+        if (Math.abs(bal) > 0.00001 || hasDeposit || hasTx) {
+          items.push({
+            id: `${p}_${c}`,
+            platform: p,
+            currency: c,
+            balance: bal,
+          });
+        }
+      }
+    }
+
+    // 5. 排序：有本金余额的排在前面，按金额降序
+    return items.sort((a, b) => {
+      if (a.balance > 0 && b.balance <= 0) return -1;
+      if (a.balance <= 0 && b.balance > 0) return 1;
+      if (a.balance > 0 && b.balance > 0) return b.balance - a.balance;
+      return 0;
+    });
+  }, [summary?.platformBalances, deposits, transactions]);
+
+  // 稳定币本金详情全屏视图状态
+  const [selectedCapitalItem, setSelectedCapitalItem] = useState<CapitalItem | null>(null);
+  const [capitalDetailVisible, setCapitalDetailVisible] = useState(false);
+
+  const activeCapitalItem = useMemo(() => {
+    if (!selectedCapitalItem) return null;
+    return (
+      capitalItems.find(
+        (c) =>
+          c.platform === selectedCapitalItem.platform &&
+          c.currency === selectedCapitalItem.currency
+      ) || selectedCapitalItem
+    );
+  }, [capitalItems, selectedCapitalItem]);
+
+  const handleDeleteDeposit = async (depositId: string) => {
+    if (!depositRepo) return;
+    try {
+      await depositRepo.delete(depositId);
+      await handleTransactionSuccess();
+    } catch (err) {
+      console.warn('Failed to delete deposit:', err);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -490,16 +650,24 @@ function AppContent({
               language={currentLanguage}
               onPressBuy={() => openAddModal('BUY')}
               onPressSell={() => openAddModal('SELL')}
+              onPressDeposit={() => openDepositModal('DEPOSIT')}
               onPressAnalysis={() => setAllocationModalVisible(true)}
               onPressCurrency={handleCycleCurrency}
               onTogglePrivacy={() => handleUpdateSettings({ privacyMode: !userSettings.privacyMode })}
             />
 
-            {/* Section Title */}
+            {/* Section Title with Crypto Holdings Total */}
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-                {t('nav.assets', currentLanguage)}
-              </Text>
+              <View style={styles.sectionTitleRow}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                  {t('nav.assets', currentLanguage)}
+                </Text>
+                <Text style={[styles.sectionAmount, { color: colors.textSecondary }]}>
+                  {formatCurrencyValue(summary.totalCryptoMarketValueUSD ?? summary.totalMarketValue, baseCurrency, {
+                    privacyMode: userSettings.privacyMode,
+                  })}
+                </Text>
+              </View>
               <TouchableOpacity onPress={() => openAddModal('BUY')} activeOpacity={0.7}>
                 <Text style={[styles.addLink, { color: colors.accent }]}>
                   {t('holdings.addLink', currentLanguage)}
@@ -508,9 +676,25 @@ function AppContent({
             </View>
           </View>
         }
+        ListFooterComponent={
+          <CapitalList
+            items={capitalItems}
+            totalCashReservesUSD={summary.totalCashReservesUSD ?? 0}
+            currency={baseCurrency}
+            privacyMode={userSettings.privacyMode}
+            language={currentLanguage}
+            onPressDeposit={(plat, cur) =>
+              openDepositModal('DEPOSIT', plat || 'OKX', cur || 'USDT')
+            }
+            onPressItem={(item) => {
+              setSelectedCapitalItem(item);
+              setCapitalDetailVisible(true);
+            }}
+          />
+        }
       />
 
-      {/* 资产买卖记录弹窗 */}
+      {/* 资产买卖交易记录弹窗 (仅买入与卖出) */}
       <AddTransactionModal
         visible={modalVisible}
         initialType={modalType}
@@ -519,13 +703,28 @@ function AppContent({
         lockAsset={modalLockAsset}
         editingTransaction={editingTransaction}
         onDeleteTransaction={handleDeleteTransaction}
+        onGoToDeposit={(plat, cur) => openDepositModal('DEPOSIT', plat, cur)}
         holdings={holdings}
         language={currentLanguage}
         onClose={handleCloseModal}
         onSuccess={handleTransactionSuccess}
         assetRepo={assetRepo}
         txRepo={txRepo}
+        platformBalances={summary.platformBalances}
         exchangeService={defaultExchangeService}
+      />
+
+      {/* 交易所本金充值与提现独立弹窗 */}
+      <DepositModal
+        visible={depositModalVisible}
+        initialType={depositModalType}
+        initialPlatform={depositModalPlatform}
+        initialCurrency={depositModalCurrency}
+        language={currentLanguage}
+        platformBalances={summary.platformBalances}
+        depositRepo={depositRepo}
+        onClose={() => setDepositModalVisible(false)}
+        onSuccess={handleTransactionSuccess}
       />
 
       {/* 资产配比与统计分析弹窗 */}
@@ -554,6 +753,21 @@ function AppContent({
         exchangeService={defaultExchangeService}
       />
 
+      {/* 稳定币本金详情与充提流水全屏页面 */}
+      <CapitalDetailScreen
+        visible={capitalDetailVisible}
+        item={activeCapitalItem}
+        deposits={deposits}
+        transactions={transactions}
+        currency={baseCurrency}
+        privacyMode={userSettings.privacyMode}
+        language={currentLanguage}
+        onClose={() => setCapitalDetailVisible(false)}
+        onOpenDeposit={(plat, cur) => openDepositModal('DEPOSIT', plat, cur)}
+        onOpenWithdraw={(plat, cur) => openDepositModal('WITHDRAW', plat, cur)}
+        onDeleteDeposit={handleDeleteDeposit}
+      />
+
       {/* 用户设置与偏好中心页面 */}
       <SettingsScreen
         visible={settingsVisible}
@@ -562,10 +776,12 @@ function AppContent({
         onUpdateSettings={handleUpdateSettings}
         assets={assets}
         transactions={transactions}
+        deposits={deposits}
         onDataResetOrImported={handleDataResetOrImported}
         settingsRepo={settingsRepo}
         assetRepo={assetRepo}
         txRepo={txRepo}
+        depositRepo={depositRepo}
       />
 
       {/* 左侧滑动边栏抽屉 */}
@@ -643,10 +859,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 4,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
   sectionTitle: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
+  },
+  sectionAmount: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   addLink: {
     color: '#38BDF8',

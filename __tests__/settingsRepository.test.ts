@@ -72,4 +72,58 @@ describe('SettingsRepository (用户偏好配置持久化测试)', () => {
     const updated = await settingsRepo.getRawValue('test_flag');
     expect(updated).toBe('true');
   });
+
+  it('清空所有数据时能够同步清除资产、流水与本金充提记录', async () => {
+    const { AssetRepository } = require('../src/database/repositories/assetRepository');
+    const { TransactionRepository } = require('../src/database/repositories/transactionRepository');
+    const { DepositRepository } = require('../src/database/repositories/depositRepository');
+
+    const assetRepo = new AssetRepository(db);
+    const txRepo = new TransactionRepository(db);
+    const depositRepo = new DepositRepository(db);
+
+    await assetRepo.insert({
+      id: 'btc_okx',
+      symbol: 'BTC',
+      name: 'Bitcoin',
+      platform: 'OKX',
+      createdAt: 1000,
+    });
+
+    await txRepo.insert({
+      id: 'tx_1',
+      assetId: 'btc_okx',
+      type: 'BUY',
+      amount: 0.1,
+      price: 50000,
+      fundingCurrency: 'USDT',
+      platform: 'OKX',
+      timestamp: 1000,
+      createdAt: 1000,
+    });
+
+    await depositRepo.insert({
+      id: 'dep_1',
+      platform: 'OKX',
+      currency: 'USDT',
+      amount: 20000,
+      timestamp: 1000,
+      createdAt: 1000,
+    });
+
+    // 校验插入成功
+    expect((await assetRepo.findAll()).length).toBe(1);
+    expect((await txRepo.findAll()).length).toBe(1);
+    expect((await depositRepo.findAll()).length).toBe(1);
+
+    // 模拟清空所有数据逻辑
+    await txRepo.deleteAll();
+    await assetRepo.deleteAll();
+    await depositRepo.deleteAll();
+
+    // 校验所有表均已清空
+    expect((await assetRepo.findAll()).length).toBe(0);
+    expect((await txRepo.findAll()).length).toBe(0);
+    expect((await depositRepo.findAll()).length).toBe(0);
+  });
 });

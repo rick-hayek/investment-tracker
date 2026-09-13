@@ -1,5 +1,5 @@
 import { DataExportService } from '../src/services/dataExportService';
-import { Asset, Transaction } from '../src/domain/types';
+import { Asset, Transaction, Deposit } from '../src/domain/types';
 
 describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)', () => {
   const mockAssets: Asset[] = [
@@ -48,6 +48,29 @@ describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)'
     },
   ];
 
+  const mockDeposits: Deposit[] = [
+    {
+      id: 'dep_1',
+      type: 'DEPOSIT',
+      platform: 'Binance',
+      currency: 'USDT',
+      amount: 50000,
+      timestamp: 1709900000000,
+      notes: 'OTC 入金',
+      createdAt: 1709900000000,
+    },
+    {
+      id: 'dep_2',
+      type: 'WITHDRAW',
+      platform: 'OKX',
+      currency: 'USDT',
+      amount: 10000,
+      timestamp: 1710200000000,
+      notes: '提现至冷钱包',
+      createdAt: 1710200000000,
+    },
+  ];
+
   describe('exportTransactionsToCSV', () => {
     it('正确生成包含 RFC 4180 标准表头与转义的 CSV 格式', () => {
       const csv = DataExportService.exportTransactionsToCSV(mockTransactions, mockAssets);
@@ -67,6 +90,17 @@ describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)'
       expect(lines[2]).toContain('tx_2,eth_okx,ETH,OKX,SELL,2,3500,7000.0000,2,USD');
     });
 
+    it('正确导出包含本金出入金记录的 CSV', () => {
+      const csv = DataExportService.exportTransactionsToCSV(mockTransactions, mockAssets, mockDeposits);
+      const lines = csv.split('\n');
+      expect(lines.length).toBe(5); // 1 表头 + 2 交易 + 2 出入金
+
+      expect(lines[3]).toContain('dep_1,deposit_binance_usdt,USDT,Binance,DEPOSIT,50000,1,50000.0000,0,USDT');
+      expect(lines[3]).toContain('OTC 入金');
+      expect(lines[4]).toContain('dep_2,deposit_okx_usdt,USDT,OKX,WITHDRAW,10000,1,10000.0000,0,USDT');
+      expect(lines[4]).toContain('提现至冷钱包');
+    });
+
     it('无交易记录时返回空数据行但保留表头', () => {
       const csv = DataExportService.exportTransactionsToCSV([]);
       expect(csv).toBe(
@@ -76,23 +110,44 @@ describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)'
   });
 
   describe('exportToJSONBackup & validateAndParseJSONBackup', () => {
-    it('成功序列化并反序列化 JSON 备份', () => {
-      const json = DataExportService.exportToJSONBackup(mockAssets, mockTransactions, {
-        baseCurrency: 'CNY',
-        privacyMode: true,
-        appSwitcherBlur: true,
-        theme: 'dark',
-        language: 'zh',
-      });
+    it('成功序列化并反序列化包含本金流水的 JSON 备份', () => {
+      const json = DataExportService.exportToJSONBackup(
+        mockAssets,
+        mockTransactions,
+        {
+          baseCurrency: 'CNY',
+          privacyMode: true,
+          appSwitcherBlur: true,
+          theme: 'dark',
+          language: 'zh',
+        },
+        mockDeposits
+      );
 
       const parsed = DataExportService.validateAndParseJSONBackup(json);
       expect(parsed.success).toBe(true);
       expect(parsed.data).toBeDefined();
       expect(parsed.data?.assets.length).toBe(2);
       expect(parsed.data?.transactions.length).toBe(2);
+      expect(parsed.data?.deposits?.length).toBe(2);
+      expect(parsed.data?.deposits?.[0].amount).toBe(50000);
+      expect(parsed.data?.deposits?.[0].type).toBe('DEPOSIT');
+      expect(parsed.data?.deposits?.[1].type).toBe('WITHDRAW');
       expect(parsed.data?.settings?.baseCurrency).toBe('CNY');
       expect(parsed.data?.settings?.privacyMode).toBe(true);
       expect(parsed.data?.settings?.language).toBe('zh');
+    });
+
+    it('兼容旧版无 deposits 字段的 JSON 备份', () => {
+      const oldBackup = JSON.stringify({
+        version: '1.0',
+        exportedAt: Date.now(),
+        assets: mockAssets,
+        transactions: mockTransactions,
+      });
+      const parsed = DataExportService.validateAndParseJSONBackup(oldBackup);
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.deposits).toEqual([]);
     });
 
     it('检测到无效或损坏的 JSON 结构时返回明确错误提示', () => {
@@ -111,6 +166,15 @@ describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)'
       const corruptedResult = DataExportService.validateAndParseJSONBackup(corruptedAsset);
       expect(corruptedResult.success).toBe(false);
       expect(corruptedResult.error).toContain('资产数据损坏');
+
+      const corruptedDeposit = JSON.stringify({
+        assets: mockAssets,
+        transactions: mockTransactions,
+        deposits: [{ id: 'dep_bad' }], // 缺失 platform, amount 等
+      });
+      const corruptedDepResult = DataExportService.validateAndParseJSONBackup(corruptedDeposit);
+      expect(corruptedDepResult.success).toBe(false);
+      expect(corruptedDepResult.error).toContain('本金记录损坏');
     });
   });
 
@@ -142,6 +206,28 @@ describe('DataExportService (数据可携性、CSV 导出与 JSON 备份测试)'
       expect(parsed.data?.transactions[0].type).toBe('BUY');
       expect(parsed.data?.transactions[0].amount).toBe(10);
       expect(parsed.data?.transactions[0].price).toBe(145.5);
+    });
+
+    it('成功解析包含 DEPOSIT 与 WITHDRAW 本金流水的 CSV 文件', () => {
+      const csv = DataExportService.exportTransactionsToCSV(mockTransactions, mockAssets, mockDeposits);
+      const parsed = DataExportService.parseTransactionsFromCSV(csv);
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.count).toBe(4); // 2 txs + 2 deposits
+      expect(parsed.data?.transactions.length).toBe(2);
+      expect(parsed.data?.deposits.length).toBe(2);
+
+      const dep1 = parsed.data?.deposits.find((d) => d.amount === 50000);
+      expect(dep1).toBeDefined();
+      expect(dep1?.type).toBe('DEPOSIT');
+      expect(dep1?.currency).toBe('USDT');
+      expect(dep1?.platform).toBe('Binance');
+
+      const dep2 = parsed.data?.deposits.find((d) => d.amount === 10000);
+      expect(dep2).toBeDefined();
+      expect(dep2?.type).toBe('WITHDRAW');
+      expect(dep2?.currency).toBe('USDT');
+      expect(dep2?.platform).toBe('OKX');
     });
 
     it('对空输入或缺失必要列的 CSV 报错', () => {

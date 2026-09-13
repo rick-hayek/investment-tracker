@@ -461,4 +461,34 @@ describe('Add Transaction Validation & Persistence (交易录入与防超卖校�
       expect(savedTx!.timestamp).toBeLessThanOrEqual(after);
     });
   });
+
+  describe('编辑交易时的本金退还计算 (Editing Transaction Capital Refund)', () => {
+    it('编辑买入交易时，应将原花费退回钱包后再与新总额比较', () => {
+      // 模拟用户在 OKX 现有 USDT 余额 1050.01
+      const currentBalance = 1050.01;
+
+      // 正在编辑的原买入交易：0.1 BTC @ 77235.2 = 7723.52 USDT
+      const editingTx: any = {
+        id: 'tx_edit_01',
+        platform: 'OKX',
+        fundingCurrency: 'USDT',
+        type: 'BUY',
+        amount: 0.1,
+        price: 77235.2,
+      };
+
+      const origCost = editingTx.amount * editingTx.price;
+      const effectiveCapital = currentBalance + origCost;
+
+      // 原交易退回后，可用本金应为 8773.53
+      expect(effectiveCapital).toBeCloseTo(8773.53, 2);
+
+      // 用户修改后金额为 7723.52，在退还后本金 8773.53 范围内，校验应通过且无缺口
+      const newCost = 7723.52;
+      const validation = PnLEngine.validateBuyCapital('OKX', 'USDT', newCost, effectiveCapital);
+      expect(validation.valid).toBe(true);
+      expect(newCost <= effectiveCapital).toBe(true);
+    });
+  });
 });
+

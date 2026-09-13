@@ -326,10 +326,10 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
           </TouchableOpacity>
 
           {/* 生物识别安全锁状态 */}
-          <View style={styles.prefRow}>
+          {/* <View style={styles.prefRow}>
             <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>{t('drawer.biometricLockLabel', language)}:</Text>
             <Text style={[styles.secDisabledText, { color: colors.textMuted }]}>{t('drawer.planned', language)}</Text>
-          </View>
+          </View> */}
 
           {/* 版本号 */}
           <View style={styles.versionRow}>

@@ -1,5 +1,6 @@
 import React from 'react';
 import Svg, { Path, Circle, Rect, G, Line, Polyline } from 'react-native-svg';
+import { PlatformType } from '../../domain/types';
 
 export interface IconProps {
   size?: number;
@@ -594,6 +595,32 @@ export const SolLogo: React.FC<{ size?: number }> = ({ size = 32 }) => (
 );
 
 /**
+ * 泰达币 (USDT) 矢量 Logo
+ */
+export const UsdtLogo: React.FC<{ size?: number }> = ({ size = 32 }) => (
+  <Svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <Circle cx="16" cy="16" r="16" fill="#26A17B" />
+    <Path
+      d="M17.8 12.8V10.5H23V8H9V10.5H14.2V12.8C10.5 13 7.8 13.8 7.8 14.8C7.8 15.8 10.5 16.6 14.2 16.8V24H17.8V16.8C21.5 16.6 24.2 15.8 24.2 14.8C24.2 13.8 21.5 13 17.8 12.8ZM16 15.6C12.4 15.6 10.3 15 10.3 14.8C10.3 14.6 12.4 14 16 14C19.6 14 21.7 14.6 21.7 14.8C21.7 15 19.6 15.6 16 15.6Z"
+      fill="#FFFFFF"
+    />
+  </Svg>
+);
+
+/**
+ * USD Coin (USDC) 矢量 Logo
+ */
+export const UsdcLogo: React.FC<{ size?: number }> = ({ size = 32 }) => (
+  <Svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <Circle cx="16" cy="16" r="16" fill="#2775CA" />
+    <Path
+      d="M16 6C10.5 6 6 10.5 6 16C6 21.5 10.5 26 16 26C21.5 26 26 21.5 26 16C26 10.5 21.5 6 16 6ZM16 7.8C20.5 7.8 24.2 11.5 24.2 16C24.2 20.5 20.5 24.2 16 24.2C11.5 24.2 7.8 20.5 7.8 16C7.8 11.5 11.5 7.8 16 7.8ZM15.1 10.8V12.2C13.2 12.5 12.2 13.6 12.2 14.9C12.2 17.2 14.8 17.5 16.3 17.9C17.4 18.2 18 18.6 18 19.3C18 20.1 17.2 20.7 16 20.7C14.5 20.7 13.6 20.1 13.3 19.1H11.7C12 20.8 13.3 21.8 15.1 22.1V23.5H16.9V22.1C18.8 21.8 20 20.7 20 19.3C20 16.9 17.4 16.5 15.9 16.2C14.8 15.9 14.1 15.5 14.1 14.8C14.1 14.1 14.8 13.5 16 13.5C17.3 13.5 18 14 18.3 14.9H19.9C19.6 13.3 18.5 12.4 16.9 12.2V10.8H15.1Z"
+      fill="#FFFFFF"
+    />
+  </Svg>
+);
+
+/**
  * 极简地球/多语言矢量线条图标 (Globe)
  */
 export const GlobeIcon: React.FC<IconProps> = ({
@@ -704,5 +731,80 @@ export const AppLogoIcon: React.FC<IconProps> = ({
     />
   </Svg>
 );
+
+/**
+ * OKX 交易所官方矢量 Logo (黑底5方块矩阵)
+ */
+export const OkxLogo: React.FC<{ size?: number }> = ({ size = 32 }) => (
+  <Svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <Rect width="32" height="32" rx="16" fill="#000000" />
+    <Rect x="8" y="8" width="5" height="5" rx="1.2" fill="#FFFFFF" />
+    <Rect x="19" y="8" width="5" height="5" rx="1.2" fill="#FFFFFF" />
+    <Rect x="13.5" y="13.5" width="5" height="5" rx="1.2" fill="#FFFFFF" />
+    <Rect x="8" y="19" width="5" height="5" rx="1.2" fill="#FFFFFF" />
+    <Rect x="19" y="19" width="5" height="5" rx="1.2" fill="#FFFFFF" />
+  </Svg>
+);
+
+/**
+ * 币安 (Binance) 交易所官方矢量 Logo (经典品牌黄菱形矩阵)
+ */
+export const BinanceLogo: React.FC<{ size?: number }> = ({ size = 32 }) => (
+  <Svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <Circle cx="16" cy="16" r="16" fill="#F0B90B" />
+    <Path d="M16 7.5L19.5 11L17.3 13.2L16 11.9L14.7 13.2L12.5 11L16 7.5Z" fill="#181A20" />
+    <Path d="M10.2 13.3L12.4 15.5L10.2 17.7L8 15.5L10.2 13.3Z" fill="#181A20" />
+    <Path d="M21.8 13.3L24 15.5L21.8 17.7L19.6 15.5L21.8 13.3Z" fill="#181A20" />
+    <Path d="M16 19.1L17.3 17.8L19.5 20L16 23.5L12.5 20L14.7 17.8L16 19.1Z" fill="#181A20" />
+    <Path d="M16 13.6L18.2 15.8L16 18L13.8 15.8L16 13.6Z" fill="#181A20" />
+  </Svg>
+);
+
+/**
+ * Coinbase 交易所官方矢量 Logo (经典蓝底 C 字圆环)
+ */
+export const CoinbaseLogo: React.FC<{ size?: number }> = ({ size = 32 }) => (
+  <Svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <Circle cx="16" cy="16" r="16" fill="#0052FF" />
+    <Path
+      d="M16 7.5C11.3 7.5 7.5 11.3 7.5 16C7.5 20.7 11.3 24.5 16 24.5C20.2 24.5 23.8 21.4 24.4 17.3H18.7C18.2 19 16.6 20.2 14.8 19.9C13 19.5 11.7 17.9 11.8 16C11.9 14.1 13.4 12.5 15.3 12.5C16.8 12.5 18.1 13.4 18.6 14.7H24.3C23.6 10.5 20.1 7.5 16 7.5Z"
+      fill="#FFFFFF"
+    />
+  </Svg>
+);
+
+/**
+ * CoinGecko 平台官方矢量 Logo (草绿底壁虎徽标)
+ */
+export const CoinGeckoLogo: React.FC<{ size?: number }> = ({ size = 32 }) => (
+  <Svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <Circle cx="16" cy="16" r="16" fill="#8DC63F" />
+    <Path
+      d="M15.5 8C11 8 8 11.5 8 16C8 20.5 11.5 24 16.5 24C21.5 24 24.5 21 24.5 17C24.5 15 23 13.5 21.5 13.5C20.5 13.5 19.8 14 19.2 14.5C18.5 12 16.8 9.5 15.5 8Z"
+      fill="#FFFFFF"
+    />
+    <Circle cx="13" cy="13.5" r="2.2" fill="#181A20" />
+    <Circle cx="13.6" cy="12.9" r="0.8" fill="#FFFFFF" />
+    <Path d="M11 18C12.5 19.5 15.5 19.5 17 18" stroke="#181A20" strokeWidth="1.2" strokeLinecap="round" />
+  </Svg>
+);
+
+/**
+ * 统一根据交易所平台返回官方矢量 Logo
+ */
+export const renderPlatformLogo = (platform: PlatformType, size = 32) => {
+  switch (platform) {
+    case 'OKX':
+      return <OkxLogo size={size} />;
+    case 'Binance':
+      return <BinanceLogo size={size} />;
+    case 'Coinbase':
+      return <CoinbaseLogo size={size} />;
+    case 'CoinGecko':
+      return <CoinGeckoLogo size={size} />;
+    default:
+      return <OkxLogo size={size} />;
+  }
+};
 
 

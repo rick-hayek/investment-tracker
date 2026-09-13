@@ -14,6 +14,7 @@ import { AssetHolding, CurrencyType, Transaction, TransactionType, PlatformType 
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
 import { ExchangeService, defaultExchangeService } from '../../services/exchangeService';
 import { AssetDetailHeader } from './AssetDetailHeader';
+import { AssetPerformanceCard } from './AssetPerformanceCard';
 import { InteractiveChart } from '../charts/InteractiveChart';
 import { TransactionHistoryList } from './TransactionHistoryList';
 import { LanguageType, t } from '../../i18n';
@@ -129,10 +130,19 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
 
         {/* 页面核心滚动区域 */}
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* 1. 顶部持仓价值总览卡片 */}
+          {/* 1. 顶部持仓价值总览卡片 (持仓市值与当前浮动盈亏) */}
           <AssetDetailHeader holding={holding} currency={currency} privacyMode={privacyMode} language={language} />
 
-          {/* 2. 交互式价格走势图表 (含分时切换与长按十字光标) */}
+          {/* 2. 代币全周期投资战绩汇总卡片 (总盈利、已实现、累计投入与卖出) */}
+          <AssetPerformanceCard
+            holding={holding}
+            transactions={transactions}
+            currency={currency}
+            privacyMode={privacyMode}
+            language={language}
+          />
+
+          {/* 3. 交互式价格走势图表 (含分时切换与长按十字光标) */}
           <InteractiveChart
             symbol={holding.symbol}
             platform={currentPlatform}
@@ -150,6 +160,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
             currentPrice={holding.currentPrice}
             averageCost={holding.averageCost}
             currency={currency}
+            privacyMode={privacyMode}
             language={language}
             onPressTransaction={onOpenEditTransaction}
           />

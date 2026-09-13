@@ -35,4 +35,11 @@ export async function runMigrations(db: IDatabaseConnection): Promise<void> {
   for (const query of ALL_MIGRATIONS) {
     await db.exec(query);
   }
+
+  // 增量迁移: 补充 deposits.type 字段
+  try {
+    await db.exec("ALTER TABLE deposits ADD COLUMN type TEXT DEFAULT 'DEPOSIT';");
+  } catch {
+    // 字段已存在时忽略错误
+  }
 }

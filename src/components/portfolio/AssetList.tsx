@@ -26,6 +26,7 @@ export interface AssetListProps {
   onPressAsset: (holding: AssetHolding) => void;
   onPressAdd: () => void;
   ListHeaderComponent?: React.ReactElement;
+  ListFooterComponent?: React.ReactElement;
 }
 
 export const AssetList: React.FC<AssetListProps> = ({
@@ -38,6 +39,7 @@ export const AssetList: React.FC<AssetListProps> = ({
   onPressAsset,
   onPressAdd,
   ListHeaderComponent,
+  ListFooterComponent,
 }) => {
   const { colors, isDark } = useTheme();
 
@@ -125,6 +127,7 @@ export const AssetList: React.FC<AssetListProps> = ({
       keyExtractor={(item) => item.assetId}
       renderItem={renderItem}
       ListHeaderComponent={ListHeaderComponent}
+      ListFooterComponent={ListFooterComponent}
       ListEmptyComponent={renderEmpty}
       contentContainerStyle={styles.listContent}
       refreshControl={

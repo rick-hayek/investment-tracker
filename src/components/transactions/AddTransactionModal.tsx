@@ -11,10 +11,11 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { PlatformType, TransactionType, Asset, AssetHolding, Transaction } from '../../domain/types';
+import { PlatformType, TransactionType, Asset, AssetHolding, Transaction, Deposit, DepositCurrency } from '../../domain/types';
 import { PnLEngine } from '../../domain/calculations/pnlEngine';
 import { AssetRepository } from '../../database/repositories/assetRepository';
 import { TransactionRepository } from '../../database/repositories/transactionRepository';
+import { DepositRepository } from '../../database/repositories/depositRepository';
 import { ExchangeService, defaultExchangeService } from '../../services/exchangeService';
 import { extractBaseSymbol, resolveCoinGeckoId, KNOWN_ASSETS } from '../../services/symbolMapper';
 import { LanguageType, t } from '../../i18n';
@@ -29,6 +30,7 @@ import {
   BtcLogo,
   EthLogo,
   SolLogo,
+  renderPlatformLogo,
 } from '../common/Icons';
 
 export interface AddTransactionModalProps {
@@ -43,8 +45,10 @@ export interface AddTransactionModalProps {
   onClose: () => void;
   onSuccess?: () => void;
   onDeleteTransaction?: (txId: string) => Promise<void> | void;
+  onGoToDeposit?: (platform: PlatformType, currency: DepositCurrency) => void;
   assetRepo?: AssetRepository;
   txRepo?: TransactionRepository;
+  platformBalances?: Record<PlatformType, { usdt: number; usdc: number; totalUSD: number }>;
   exchangeService?: ExchangeService;
 }
 
@@ -70,12 +74,20 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   onClose,
   onSuccess,
   onDeleteTransaction,
+  onGoToDeposit,
   assetRepo,
   txRepo,
+  platformBalances,
   exchangeService = defaultExchangeService,
 }) => {
   const isEditing = !!editingTransaction;
-  const [txType, setTxType] = useState<TransactionType>(initialType);
+  const [activeTab, setActiveTab] = useState<'BUY' | 'SELL'>(
+    initialType === 'SELL' ? 'SELL' : 'BUY'
+  );
+  const [txType, setTxType] = useState<TransactionType>(
+    initialType === 'SELL' ? 'SELL' : 'BUY'
+  );
+  const [fundingCurrency, setFundingCurrency] = useState<DepositCurrency>('USDT');
   const [platform, setPlatform] = useState<PlatformType>(initialPlatform);
   const [symbol, setSymbol] = useState(initialSymbol);
   const [priceStr, setPriceStr] = useState('');
@@ -200,7 +212,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
     if (isOpening) {
       if (editingTransaction) {
+        setActiveTab(editingTransaction.type);
         setTxType(editingTransaction.type);
+        setFundingCurrency(editingTransaction.fundingCurrency || 'USDT');
         setPlatform(editingTransaction.platform);
         const base = extractBaseSymbol(
           editingTransaction.assetId.includes('_')
@@ -218,10 +232,27 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
         const key = `${editingTransaction.platform}_${base}`;
         fetchedTokenKeyRef.current = key;
+
+        // 计算当前资产在当前平台的可用持仓（退还当前编辑的交易）
+        const matchedHolding = holdings?.find(
+          (h) =>
+            h.assetId === editingTransaction.assetId ||
+            (h.symbol.toLowerCase() === base.toLowerCase() &&
+              (h.platform || 'Binance') === editingTransaction.platform)
+        );
+        let qty = matchedHolding ? matchedHolding.totalQuantity : 0;
+        if (editingTransaction.type === 'SELL') {
+          qty += editingTransaction.amount;
+        }
+        setHoldingQty(qty);
+
         return;
       }
 
-      setTxType(initialType);
+      const openingTab = initialType === 'SELL' ? 'SELL' : 'BUY';
+      setActiveTab(openingTab);
+      setTxType(openingTab);
+      setFundingCurrency('USDT');
       setIsHoldingDropdownOpen(false);
       setPriceStr('');
       setAmountStr('');
@@ -362,9 +393,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   };
 
   // 切换买入/卖出方向
-  const handleSwitchType = (type: TransactionType) => {
+  const handleSwitchType = (type: 'BUY' | 'SELL') => {
+    setActiveTab(type);
     setTxType(type);
     setIsHoldingDropdownOpen(false);
+    setErrorMessage(null);
+
     if (type === 'SELL') {
       // 切换到卖出模式：如果未锁定且有持仓，自动对齐到持仓资产
       if (!lockAsset && availableHoldings.length > 0) {
@@ -382,12 +416,71 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           return;
         }
       }
+    } else if (type === 'BUY') {
+      const cleanSym = symbol.trim().toUpperCase();
+      if (cleanSym) {
+        fetchedTokenKeyRef.current = `${platform}_${cleanSym}`;
+        fetchMarketPrice(platform, cleanSym, false);
+      }
     }
-    const cleanSym = symbol.trim().toUpperCase();
-    if (cleanSym) {
-      fetchedTokenKeyRef.current = `${platform}_${cleanSym}`;
-      fetchMarketPrice(platform, cleanSym, false);
+  };
+
+  // 计算指定平台和指定稳定币的可用本金（在编辑模式下，自动把被编辑交易的原资金退回钱包计算）
+  const getPlatformCurrencyBalance = useCallback(
+    (targetPlatform: PlatformType, targetCurrency: DepositCurrency): number => {
+      if (!platformBalances || !platformBalances[targetPlatform]) return 0;
+      let bal =
+        targetCurrency === 'USDC'
+          ? platformBalances[targetPlatform].usdc
+          : platformBalances[targetPlatform].usdt;
+
+      if (editingTransaction) {
+        const origPlat = editingTransaction.platform;
+        const origCur = (editingTransaction.fundingCurrency as DepositCurrency) || 'USDT';
+        const origType = editingTransaction.type;
+
+        // 如果原交易发生在此平台和此币种上，将原交易资金退回钱包计算
+        if (origPlat === targetPlatform && origCur === targetCurrency) {
+          if (origType === 'BUY') {
+            // 原先是买入：原花费（金额*单价 + 手续费）退回钱包增加可用本金
+            const origCost =
+              editingTransaction.amount * editingTransaction.price +
+              (editingTransaction.fee || 0);
+            bal += origCost;
+          } else if (origType === 'SELL') {
+            // 原先是卖出：原回款（金额*单价 - 手续费）退回意味着从钱包扣回
+            const origProceeds =
+              editingTransaction.amount * editingTransaction.price -
+              (editingTransaction.fee || 0);
+            bal -= origProceeds;
+          }
+        }
+      }
+
+      return Math.max(0, bal);
+    },
+    [platformBalances, editingTransaction]
+  );
+
+  // 当前平台稳定币的可用本金 (USDT)
+  const currentPlatformCapital = useMemo(() => {
+    return getPlatformCurrencyBalance(platform, 'USDT');
+  }, [getPlatformCurrencyBalance, platform]);
+
+  // 买入资金缺口推导
+  const buyShortfall = useMemo(() => {
+    if (activeTab !== 'BUY') return 0;
+    const total = parseFloat(calculatedTotal) || 0;
+    if (total > currentPlatformCapital) {
+      return total - currentPlatformCapital;
     }
+    return 0;
+  }, [activeTab, calculatedTotal, currentPlatformCapital]);
+
+  // 快捷跳转去充值补齐缺口
+  const handleGoToDeposit = () => {
+    onClose();
+    onGoToDeposit?.(platform, 'USDT');
   };
 
   // 切换平台：重新获取该平台的市价并自动填入一次
@@ -468,6 +561,33 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
     const baseSymbol = extractBaseSymbol(symbol);
     const assetId = `${baseSymbol.toLowerCase()}_${platform.toLowerCase()}`;
+
+    // 买入模式下的强本金校验
+    if (activeTab === 'BUY') {
+      const cost = p * q;
+      const capValidation = PnLEngine.validateBuyCapital(platform, 'USDT', cost, currentPlatformCapital);
+      if (!capValidation.valid) {
+        showAlert(
+          t('transaction.insufficientCapital', language),
+          language === 'zh'
+            ? `您在 ${platform} 平台当前仅有 $${currentPlatformCapital.toFixed(2)} USDT 可用本金，不足以支付本次买入 $${cost.toFixed(2)}。\n\n不同交易所资金严格独立，请先为 ${platform} 入金。`
+            : `You only have $${currentPlatformCapital.toFixed(2)} USDT available on ${platform}, which cannot cover $${cost.toFixed(2)}.\n\nExchange balances are strictly isolated. Please deposit into ${platform} first.`,
+          [
+            {
+              text: t('transaction.goToDeposit', language),
+              onPress: handleGoToDeposit,
+            },
+            {
+              text: language === 'zh' ? '我知道了' : 'OK',
+              style: 'cancel',
+            },
+          ],
+          'warning'
+        );
+        setErrorMessage(capValidation.error || (language === 'zh' ? '可用本金不足' : 'Insufficient capital'));
+        return;
+      }
+    }
 
     // 针对卖出操作，执行权威实时持仓查验与优雅拦截
     if (txType === 'SELL') {
@@ -553,6 +673,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             type: txType,
             amount: q,
             price: p,
+            fundingCurrency,
             platform,
             timestamp: finalTimestamp,
             notes: notes.trim() || undefined,
@@ -568,6 +689,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             price: p,
             fee: 0,
             feeCurrency: 'USD',
+            fundingCurrency,
             platform,
             timestamp: finalTimestamp,
             notes: notes.trim() || undefined,
@@ -626,7 +748,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     );
   };
 
-  const isBuy = txType === 'BUY';
+  const isBuy = activeTab === 'BUY';
+  const isSell = activeTab === 'SELL';
   const themeColor = isBuy ? '#10B981' : '#EF4444';
 
   return (
@@ -671,7 +794,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             onScrollBeginDrag={() => setIsHoldingDropdownOpen(false)}
             style={{ zIndex: 1 }}
           >
-            {/* 买入/卖出方向分段选择器 */}
+            {/* 买入/卖出/充值方向分段选择器 */}
             <View style={styles.toggleGroup}>
               <TouchableOpacity
                 style={[
@@ -688,11 +811,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               <TouchableOpacity
                 style={[
                   styles.toggleBtn,
-                  !isBuy && styles.toggleBtnActiveSell,
+                  isSell && styles.toggleBtnActiveSell,
                 ]}
                 onPress={() => handleSwitchType('SELL')}
               >
-                <Text style={[styles.toggleBtnText, !isBuy && styles.toggleBtnTextActive]}>
+                <Text style={[styles.toggleBtnText, isSell && styles.toggleBtnTextActive]}>
                   {t('transaction.sell', language)}
                 </Text>
               </TouchableOpacity>
@@ -705,387 +828,438 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               </View>
             )}
 
-            {/* BUY 模式：首页自由选择 vs 详情页锁定持仓 */}
-            {isBuy ? (
-              lockAsset ? (
-                /* 从具体持仓页面点击“买入”：锁定当前平台和代币 */
-                <View style={styles.formGroup}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.formLabel}>{t('transaction.targetAssetToBuy', language)}</Text>
-                    <View style={styles.lockedBadge}>
-                      <LockIcon size={12} color="#94A3B8" />
-                      <Text style={styles.lockedBadgeText}>{t('transaction.lockedHolding', language)}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.holdingSelectorBoxLocked}>
-                    <View style={styles.selectorLeft}>
-                      {renderLogo(selectedHolding?.symbol || symbol, 36)}
-                      <View style={styles.selectorInfo}>
-                        <View style={styles.selectorTitleRow}>
-                          <Text style={styles.selectorName}>
-                            {selectedHolding?.name || symbol} ({extractBaseSymbol(selectedHolding?.symbol || symbol)})
-                          </Text>
-                          <View style={styles.platformBadge}>
-                            <Text style={styles.platformBadgeText}>{platform}</Text>
+              <>
+                {/* BUY 模式：首页自由选择 vs 详情页锁定持仓 */}
+                {isBuy ? (
+                  lockAsset ? (
+                    /* 从具体持仓页面点击“买入”：锁定当前平台和代币 */
+                    <>
+                      <View style={styles.formGroup}>
+                        <View style={styles.labelRow}>
+                          <Text style={styles.formLabel}>{t('transaction.targetAssetToBuy', language)}</Text>
+                          <View style={styles.lockedBadge}>
+                            <LockIcon size={12} color="#94A3B8" />
+                            <Text style={styles.lockedBadgeText}>{t('transaction.lockedHolding', language)}</Text>
                           </View>
                         </View>
-                        <Text style={styles.selectorSub}>
-                          {t('transaction.available', language)}: {holdingQty} {extractBaseSymbol(symbol)}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              ) : (
-                /* 从首页“记一笔”开始买入：逻辑不变，自由选择平台和代币 */
-                <>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{t('transaction.selectPlatform', language)}</Text>
-                    <View style={styles.platformRow}>
-                      {PLATFORMS.map((item) => {
-                        const isSelected = platform === item.key;
-                        return (
-                          <TouchableOpacity
-                            key={item.key}
-                            style={[
-                              styles.platformChip,
-                              isSelected && styles.platformChipSelected,
-                            ]}
-                            onPress={() => handleSelectPlatform(item.key)}
-                          >
-                            <View style={[styles.pBadge, { backgroundColor: item.badgeBg }]}>
-                              <Text style={[styles.pBadgeText, item.key === 'Binance' && { color: '#090D16' }]}>
-                                {item.badge}
+                        <View style={styles.holdingSelectorBoxLocked}>
+                          <View style={styles.selectorLeft}>
+                            {renderLogo(selectedHolding?.symbol || symbol, 36)}
+                            <View style={styles.selectorInfo}>
+                              <View style={styles.selectorTitleRow}>
+                                <Text style={styles.selectorName}>
+                                  {selectedHolding?.name || symbol} ({extractBaseSymbol(selectedHolding?.symbol || symbol)})
+                                </Text>
+                                <View style={styles.platformBadge}>
+                                  <Text style={styles.platformBadgeText}>{platform}</Text>
+                                </View>
+                              </View>
+                              <Text style={styles.selectorSub}>
+                                {t('transaction.available', language)}: {holdingQty} {extractBaseSymbol(symbol)}
                               </Text>
                             </View>
-                            <Text style={[styles.platformName, isSelected && styles.platformNameSelected]}>
-                              {item.label}
+                          </View>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6 }}>
+                          <Text style={styles.holdingInfoText}>
+                            {t('deposit.currentPlatformBalance', language, { platform })}: ${currentPlatformCapital.toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* 从详情进入买入：资金不足缺口提示条 */}
+                      {buyShortfall > 0 && (
+                        <View style={styles.capitalShortfallBanner}>
+                          <View style={styles.capitalShortfallInfo}>
+                            <Text style={styles.capitalShortfallTitle}>
+                              {language === 'zh' ? '⚠️ 本金不足提醒' : '⚠️ Insufficient Capital'}
+                            </Text>
+                            <Text style={styles.capitalShortfallText}>
+                              {t('deposit.insufficientCapital', language)
+                                .replace('{platform}', platform)
+                                .replace('{currency}', 'USDT')
+                                .replace('{amount}', buyShortfall.toFixed(2))}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.goToDepositBtn}
+                            onPress={handleGoToDeposit}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.goToDepositBtnText}>
+                              {t('deposit.goToDeposit', language)}
                             </Text>
                           </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{t('transaction.tokenSymbol', language)}</Text>
-                    <TextInput
-                      style={styles.inputBox}
-                      value={symbol}
-                      onChangeText={(val) => setSymbol(val.toUpperCase())}
-                      placeholder="BTC / ETH / SOL"
-                      placeholderTextColor="#64748B"
-                      autoCapitalize="characters"
-                    />
-                    <Text style={styles.helperText}>{formatHint}</Text>
-                  </View>
-                </>
-              )
-            ) : (
-              /* SELL 模式：从持仓中选择或锁定持仓 */
-              <View style={[styles.formGroup, isHoldingDropdownOpen && styles.formGroupOpen]}>
-                {lockAsset ? (
-                  /* 从持仓详情界面进入：锁定当前持仓 */
-                  <>
-                    <View style={styles.labelRow}>
-                      <Text style={styles.formLabel}>{t('transaction.selectHoldingToSell', language)}</Text>
-                      <View style={styles.lockedBadge}>
-                        <LockIcon size={12} color="#94A3B8" />
-                        <Text style={styles.lockedBadgeText}>{t('transaction.lockedHolding', language)}</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    /* 从首页“记一笔”开始买入：自由选择平台和代币 (默认 USDT 稳定币) */
+                    <>
+                      <View style={styles.formGroup}>
+                        <View style={styles.labelRow}>
+                          <Text style={styles.formLabel}>{t('transaction.selectPlatform', language)}</Text>
+                          <Text style={styles.holdingInfoText}>
+                            {t('deposit.currentPlatformBalance', language, { platform })}: ${currentPlatformCapital.toFixed(2)}
+                          </Text>
+                        </View>
+                        <View style={styles.platformIconRow}>
+                          {PLATFORMS.map((item) => {
+                            const isSelected = platform === item.key;
+                            return (
+                              <TouchableOpacity
+                                key={item.key}
+                                style={[
+                                  styles.platformIconCard,
+                                  isSelected && styles.platformCardSelected,
+                                ]}
+                                onPress={() => handleSelectPlatform(item.key)}
+                                activeOpacity={0.7}
+                              >
+                                {renderPlatformLogo(item.key, 30)}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
                       </View>
-                    </View>
-                    <View style={styles.holdingSelectorBoxLocked}>
-                      <View style={styles.selectorLeft}>
-                        {renderLogo(selectedHolding?.symbol || symbol, 36)}
-                        <View style={styles.selectorInfo}>
-                          <View style={styles.selectorTitleRow}>
-                            <Text style={styles.selectorName}>
-                              {selectedHolding?.name || symbol} ({extractBaseSymbol(selectedHolding?.symbol || symbol)})
+
+                      {/* 资金不足缺口提示条 */}
+                      {buyShortfall > 0 && (
+                        <View style={styles.capitalShortfallBanner}>
+                          <View style={styles.capitalShortfallInfo}>
+                            <Text style={styles.capitalShortfallTitle}>
+                              {language === 'zh' ? '⚠️ 本金不足提醒' : '⚠️ Insufficient Capital'}
                             </Text>
-                            <View style={styles.platformBadge}>
-                              <Text style={styles.platformBadgeText}>{platform}</Text>
+                            <Text style={styles.capitalShortfallText}>
+                              {t('deposit.insufficientCapital', language)
+                                .replace('{platform}', platform)
+                                .replace('{currency}', 'USDT')
+                                .replace('{amount}', buyShortfall.toFixed(2))}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.goToDepositBtn}
+                            onPress={handleGoToDeposit}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.goToDepositBtnText}>
+                              {t('deposit.goToDeposit', language)}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>{t('transaction.tokenSymbol', language)}</Text>
+                        <TextInput
+                          style={styles.inputBox}
+                          value={symbol}
+                          onChangeText={(val) => setSymbol(val.toUpperCase())}
+                          placeholder="BTC / ETH / SOL"
+                          placeholderTextColor="#64748B"
+                          autoCapitalize="characters"
+                        />
+                        <Text style={styles.helperText}>{formatHint}</Text>
+                      </View>
+                    </>
+                  )
+                ) : (
+                  /* SELL 模式：从持仓中选择或锁定持仓 */
+                  <View style={[styles.formGroup, isHoldingDropdownOpen && styles.formGroupOpen]}>
+                    {lockAsset ? (
+                      /* 从持仓详情界面进入：锁定当前持仓 */
+                      <>
+                        <View style={styles.labelRow}>
+                          <Text style={styles.formLabel}>{t('transaction.selectHoldingToSell', language)}</Text>
+                          <View style={styles.lockedBadge}>
+                            <LockIcon size={12} color="#94A3B8" />
+                            <Text style={styles.lockedBadgeText}>{t('transaction.lockedHolding', language)}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.holdingSelectorBoxLocked}>
+                          <View style={styles.selectorLeft}>
+                            {renderLogo(selectedHolding?.symbol || symbol, 36)}
+                            <View style={styles.selectorInfo}>
+                              <View style={styles.selectorTitleRow}>
+                                <Text style={styles.selectorName}>
+                                  {selectedHolding?.name || symbol} ({extractBaseSymbol(selectedHolding?.symbol || symbol)})
+                                </Text>
+                                <View style={styles.platformBadge}>
+                                  <Text style={styles.platformBadgeText}>{platform}</Text>
+                                </View>
+                              </View>
+                              <Text style={styles.selectorSub}>
+                                {t('transaction.available', language)}: {holdingQty} {extractBaseSymbol(symbol)}
+                              </Text>
                             </View>
                           </View>
-                          <Text style={styles.selectorSub}>
+                        </View>
+                      </>
+                    ) : availableHoldings.length === 0 ? (
+                      /* 从首页进入但暂无可卖出持仓 */
+                      <View style={styles.noHoldingsCard}>
+                        <Text style={styles.noHoldingsCardText}>
+                          {t('transaction.noHoldingsToSell', language)}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.goToBuyBtn}
+                          onPress={() => handleSwitchType('BUY')}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.goToBuyBtnText}>{t('transaction.goToBuy', language)}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      /* 从首页进入：提供现有持仓下拉选择框 */
+                      <>
+                        <View style={styles.labelRow}>
+                          <Text style={styles.formLabel}>{t('transaction.selectHoldingToSell', language)}</Text>
+                          <Text style={styles.holdingInfoText}>
                             {t('transaction.available', language)}: {holdingQty} {extractBaseSymbol(symbol)}
                           </Text>
                         </View>
-                      </View>
+
+                        <View style={styles.selectorWrapper}>
+                          <TouchableOpacity
+                            style={[
+                              styles.holdingSelectorBox,
+                              isHoldingDropdownOpen && styles.holdingSelectorBoxActive,
+                            ]}
+                            onPress={() => setIsHoldingDropdownOpen(!isHoldingDropdownOpen)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.selectorLeft}>
+                              {renderLogo(selectedHolding?.symbol || symbol, 36)}
+                              <View style={styles.selectorInfo}>
+                                <View style={styles.selectorTitleRow}>
+                                  <Text style={styles.selectorName}>
+                                    {selectedHolding?.name || symbol} ({extractBaseSymbol(selectedHolding?.symbol || symbol)})
+                                  </Text>
+                                  <View style={styles.platformBadge}>
+                                    <Text style={styles.platformBadgeText}>{selectedHolding?.platform || platform}</Text>
+                                  </View>
+                                </View>
+                                <Text style={styles.selectorSub}>
+                                  {t('transaction.available', language)}: {selectedHolding?.totalQuantity ?? holdingQty} {extractBaseSymbol(symbol)}
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={[styles.selectorRight, isHoldingDropdownOpen && styles.selectorRightRotated]}>
+                              <ChevronDownIcon size={18} color="#94A3B8" />
+                            </View>
+                          </TouchableOpacity>
+
+                          {isHoldingDropdownOpen && (
+                            <View style={styles.dropdownFloatingContainer}>
+                              <ScrollView
+                                style={styles.dropdownScroll}
+                                nestedScrollEnabled={true}
+                                showsVerticalScrollIndicator={true}
+                                keyboardShouldPersistTaps="always"
+                              >
+                                {availableHoldings.map((item) => {
+                                  const itemPlat = item.platform || 'Binance';
+                                  const isCurrent =
+                                    item.symbol.toLowerCase() === symbol.toLowerCase() &&
+                                    itemPlat.toLowerCase() === platform.toLowerCase();
+                                  return (
+                                    <TouchableOpacity
+                                      key={item.assetId}
+                                      style={[styles.dropdownItem, isCurrent && styles.dropdownItemActive]}
+                                      onPress={() => handleSelectHolding(item)}
+                                      activeOpacity={0.7}
+                                    >
+                                      <View style={styles.selectorLeft}>
+                                        {renderLogo(item.symbol, 28)}
+                                        <View style={styles.selectorInfo}>
+                                          <View style={styles.selectorTitleRow}>
+                                            <Text style={[styles.selectorName, isCurrent && styles.textHighlight]}>
+                                              {item.name} ({item.symbol})
+                                            </Text>
+                                            <View style={styles.platformBadge}>
+                                              <Text style={styles.platformBadgeText}>{itemPlat}</Text>
+                                            </View>
+                                          </View>
+                                        </View>
+                                      </View>
+                                      <View style={styles.itemRight}>
+                                        <Text style={[styles.itemQtyText, isCurrent && styles.textHighlight]}>
+                                          {item.totalQuantity} {item.symbol}
+                                        </Text>
+                                      </View>
+                                    </TouchableOpacity>
+                                  );
+                                })}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+                      </>
+                    )}
+
+                    {/* 卖出回款提示 */}
+                    <View style={styles.sellProceedsBox}>
+                      <Text style={styles.sellProceedsText}>
+                        💡 {t('deposit.sellProceedsNotice', language)}
+                      </Text>
                     </View>
-                  </>
-                ) : availableHoldings.length === 0 ? (
-                  /* 从首页进入但暂无可卖出持仓 */
-                  <View style={styles.noHoldingsCard}>
-                    <Text style={styles.noHoldingsCardText}>
-                      {t('transaction.noHoldingsToSell', language)}
+                  </View>
+                )}
+
+                {/* 成交单价输入与一键市价填充 */}
+                <View style={styles.formGroup}>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.formLabel}>
+                      {isBuy ? t('transaction.buyPrice', language) : t('transaction.sellPrice', language)} (USD)
                     </Text>
                     <TouchableOpacity
-                      style={styles.goToBuyBtn}
-                      onPress={() => handleSwitchType('BUY')}
-                      activeOpacity={0.8}
+                      style={styles.quickPriceBtn}
+                      onPress={handleFetchCurrentPrice}
+                      disabled={isFetchingPrice}
                     >
-                      <Text style={styles.goToBuyBtnText}>{t('transaction.goToBuy', language)}</Text>
+                      {isFetchingPrice ? (
+                        <ActivityIndicator size="small" color="#38BDF8" />
+                      ) : (
+                        <Text style={styles.quickPriceBtnText}>{t('transaction.useMarketPrice', language)}</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={priceStr}
+                    onChangeText={setPriceStr}
+                    onFocus={() => setIsHoldingDropdownOpen(false)}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor="#64748B"
+                  />
+                  {priceNotice && (
+                    <Text style={styles.fallbackNoticeText}>{priceNotice}</Text>
+                  )}
+                </View>
+
+                {/* 交易数量输入 */}
+                <View style={styles.formGroup}>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.formLabel}>{t('transaction.quantityAmount', language)}</Text>
+                    {!isBuy && holdingQty > 0 && (
+                      <TouchableOpacity onPress={handleSetMaxSell} style={styles.maxChip}>
+                        <Text style={styles.maxChipText}>{language === 'zh' ? '全部卖出' : 'Max'}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TextInput
+                    style={[styles.inputBox, isOverselling && styles.inputBoxError]}
+                    value={amountStr}
+                    onChangeText={(val) => {
+                      setAmountStr(val);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    onFocus={() => setIsHoldingDropdownOpen(false)}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor="#64748B"
+                  />
+                  {isOverselling && (
+                    <View style={styles.inlineWarningRow}>
+                      <Text style={styles.inlineWarningText}>
+                        {language === 'zh'
+                          ? `⚠️ 卖出数量 (${amountStr}) 超出可用持仓 (${holdingQty})`
+                          : `⚠️ Quantity (${amountStr}) exceeds available holding (${holdingQty})`}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* 交易日期与时间 (可选) */}
+                <View style={styles.formGroup}>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.formLabel}>{t('transaction.txDate', language)}</Text>
+                    <View style={styles.dateActionRow}>
+                      {dateStr.trim().length > 0 && (
+                        <TouchableOpacity onPress={handleClearDate} style={styles.dateClearBtn}>
+                          <Text style={styles.dateClearBtnText}>{language === 'zh' ? '清空' : 'Clear'}</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity onPress={handleSetCurrentDate} style={styles.quickPriceBtn}>
+                        <Text style={styles.quickPriceBtnText}>{t('transaction.useCurrentTime', language)}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={dateStr}
+                    onChangeText={(val) => {
+                      setDateStr(val);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    onFocus={() => setIsHoldingDropdownOpen(false)}
+                    placeholder={t('transaction.txDatePlaceholder', language)}
+                    placeholderTextColor="#64748B"
+                  />
+                </View>
+
+                {/* 交易总金额汇总卡片 */}
+                <View style={styles.summaryBox}>
+                  <Text style={styles.sumLabel}>{language === 'zh' ? '交易总金额 (Total)' : 'Total Amount'}</Text>
+                  <Text style={styles.sumVal}>${calculatedTotal}</Text>
+                </View>
+
+                {/* 操作按钮区：编辑模式下取消与保存同一行显示，普通模式下显示确认买入/卖出 */}
+                {isEditing ? (
+                  <View style={styles.editActionsRow}>
+                    <TouchableOpacity
+                      style={styles.cancelEditBtn}
+                      onPress={onClose}
+                      activeOpacity={0.7}
+                      disabled={isSubmitting}
+                    >
+                      <Text style={styles.cancelEditBtnText}>
+                        {language === 'zh' ? '取消' : 'Cancel'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.submitBtn,
+                        styles.saveEditBtnInRow,
+                        { backgroundColor: themeColor },
+                        isSubmitting && { opacity: 0.7 },
+                      ]}
+                      onPress={handleSubmit}
+                      activeOpacity={0.8}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.submitBtnText}>
+                          {language === 'zh' ? '保存更新' : 'Save Changes'}
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  /* 从首页进入：提供现有持仓下拉选择框 (图2悬浮Popover卡片效果) */
-                  <>
-                    <View style={styles.labelRow}>
-                      <Text style={styles.formLabel}>{t('transaction.selectHoldingToSell', language)}</Text>
-                      <Text style={styles.holdingInfoText}>
-                        {t('transaction.available', language)}: {holdingQty} {extractBaseSymbol(symbol)}
+                  <TouchableOpacity
+                    style={[
+                      styles.submitBtn,
+                      { backgroundColor: themeColor },
+                      isSubmitting && { opacity: 0.7 },
+                    ]}
+                    onPress={handleSubmit}
+                    disabled={isSubmitting}
+                    activeOpacity={0.8}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.submitBtnText}>
+                        {isBuy ? t('transaction.confirmBuy', language) : t('transaction.confirmSell', language)}
                       </Text>
-                    </View>
-
-                    {/* 使用 selectorWrapper 紧贴持仓显示框，使悬浮卡片以 top: '100%' 悬浮在下方，零重叠 */}
-                    <View style={styles.selectorWrapper}>
-                      <TouchableOpacity
-                        style={[
-                          styles.holdingSelectorBox,
-                          isHoldingDropdownOpen && styles.holdingSelectorBoxActive,
-                        ]}
-                        onPress={() => setIsHoldingDropdownOpen(!isHoldingDropdownOpen)}
-                        activeOpacity={0.8}
-                      >
-                        <View style={styles.selectorLeft}>
-                          {renderLogo(selectedHolding?.symbol || symbol, 36)}
-                          <View style={styles.selectorInfo}>
-                            <View style={styles.selectorTitleRow}>
-                              <Text style={styles.selectorName}>
-                                {selectedHolding?.name || symbol} ({extractBaseSymbol(selectedHolding?.symbol || symbol)})
-                              </Text>
-                              <View style={styles.platformBadge}>
-                                <Text style={styles.platformBadgeText}>{selectedHolding?.platform || platform}</Text>
-                              </View>
-                            </View>
-                            <Text style={styles.selectorSub}>
-                              {t('transaction.available', language)}: {selectedHolding?.totalQuantity ?? holdingQty} {extractBaseSymbol(symbol)}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={[styles.selectorRight, isHoldingDropdownOpen && styles.selectorRightRotated]}>
-                          <ChevronDownIcon size={18} color="#94A3B8" />
-                        </View>
-                      </TouchableOpacity>
-
-                      {/* 悬浮 Popover 选项列表：绝对定位紧随显示框下方 6px，顺畅点击 */}
-                      {isHoldingDropdownOpen && (
-                        <View style={styles.dropdownFloatingContainer}>
-                          <ScrollView
-                            style={styles.dropdownScroll}
-                            nestedScrollEnabled={true}
-                            showsVerticalScrollIndicator={true}
-                            keyboardShouldPersistTaps="always"
-                          >
-                            {availableHoldings.map((item) => {
-                              const itemPlat = item.platform || 'Binance';
-                              const isCurrent =
-                                item.symbol.toLowerCase() === symbol.toLowerCase() &&
-                                itemPlat.toLowerCase() === platform.toLowerCase();
-                              return (
-                                <TouchableOpacity
-                                  key={item.assetId}
-                                  style={[styles.dropdownItem, isCurrent && styles.dropdownItemActive]}
-                                  onPress={() => handleSelectHolding(item)}
-                                  activeOpacity={0.7}
-                                >
-                                  <View style={styles.selectorLeft}>
-                                    {renderLogo(item.symbol, 28)}
-                                    <View style={styles.selectorInfo}>
-                                      <View style={styles.selectorTitleRow}>
-                                        <Text style={[styles.selectorName, isCurrent && styles.textHighlight]}>
-                                          {item.name} ({item.symbol})
-                                        </Text>
-                                        <View style={styles.platformBadge}>
-                                          <Text style={styles.platformBadgeText}>{itemPlat}</Text>
-                                        </View>
-                                      </View>
-                                    </View>
-                                  </View>
-                                  <View style={styles.itemRight}>
-                                    <Text style={[styles.itemQtyText, isCurrent && styles.textHighlight]}>
-                                      {item.totalQuantity} {item.symbol}
-                                    </Text>
-                                  </View>
-                                </TouchableOpacity>
-                              );
-                            })}
-                          </ScrollView>
-                        </View>
-                      )}
-                    </View>
-                  </>
-                )}
-              </View>
-            )}
-
-            {/* 成交单价输入与一键市价填充 */}
-            <View style={styles.formGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>
-                  {isBuy ? t('transaction.buyPrice', language) : t('transaction.sellPrice', language)} (USD)
-                </Text>
-                <TouchableOpacity
-                  style={styles.quickPriceBtn}
-                  onPress={handleFetchCurrentPrice}
-                  disabled={isFetchingPrice}
-                >
-                  {isFetchingPrice ? (
-                    <ActivityIndicator size="small" color="#38BDF8" />
-                  ) : (
-                    <Text style={styles.quickPriceBtnText}>{t('transaction.useMarketPrice', language)}</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                style={styles.inputBox}
-                value={priceStr}
-                onChangeText={setPriceStr}
-                onFocus={() => setIsHoldingDropdownOpen(false)}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor="#64748B"
-              />
-              {priceNotice && (
-                <Text style={styles.fallbackNoticeText}>{priceNotice}</Text>
-              )}
-            </View>
-
-            {/* 交易数量输入 */}
-            <View style={styles.formGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>{t('transaction.quantityAmount', language)}</Text>
-                {!isBuy && holdingQty > 0 && (
-                  <TouchableOpacity onPress={handleSetMaxSell} style={styles.maxChip}>
-                    <Text style={styles.maxChipText}>{language === 'zh' ? '全部卖出' : 'Max'}</Text>
+                    )}
                   </TouchableOpacity>
                 )}
-              </View>
-              <TextInput
-                style={[styles.inputBox, isOverselling && styles.inputBoxError]}
-                value={amountStr}
-                onChangeText={(val) => {
-                  setAmountStr(val);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                onFocus={() => setIsHoldingDropdownOpen(false)}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor="#64748B"
-              />
-              {isOverselling && (
-                <View style={styles.inlineWarningRow}>
-                  <Text style={styles.inlineWarningText}>
-                    {language === 'zh'
-                      ? `⚠️ 卖出数量 (${amountStr}) 超出可用持仓 (${holdingQty})`
-                      : `⚠️ Quantity (${amountStr}) exceeds available holding (${holdingQty})`}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* 交易日期与时间 (可选) */}
-            <View style={styles.formGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>{t('transaction.txDate', language)}</Text>
-                <View style={styles.dateActionRow}>
-                  {dateStr.trim().length > 0 && (
-                    <TouchableOpacity onPress={handleClearDate} style={styles.dateClearBtn}>
-                      <Text style={styles.dateClearBtnText}>{language === 'zh' ? '清空' : 'Clear'}</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={handleSetCurrentDate} style={styles.quickPriceBtn}>
-                    <Text style={styles.quickPriceBtnText}>{t('transaction.useCurrentTime', language)}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <TextInput
-                style={styles.inputBox}
-                value={dateStr}
-                onChangeText={(val) => {
-                  setDateStr(val);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                onFocus={() => setIsHoldingDropdownOpen(false)}
-                placeholder={t('transaction.txDatePlaceholder', language)}
-                placeholderTextColor="#64748B"
-              />
-            </View>
-
-            {/* 备忘备注 (UI隐藏，后续需要时解开注释即可) */}
-            {/*
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>{t('transaction.notes', language)}</Text>
-              <TextInput
-                style={[styles.inputBox, styles.notesBox]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder={t('transaction.notesPlaceholder', language)}
-                placeholderTextColor="#64748B"
-              />
-            </View>
-            */}
-
-            {/* 交易总金额汇总卡片 */}
-            <View style={styles.summaryBox}>
-              <Text style={styles.sumLabel}>{language === 'zh' ? '交易总金额 (Total)' : 'Total Amount'}</Text>
-              <Text style={styles.sumVal}>${calculatedTotal}</Text>
-            </View>
-
-            {/* 操作按钮区：编辑模式下取消与保存同一行显示，普通模式下显示确认买入/卖出 */}
-            {isEditing ? (
-              <View style={styles.editActionsRow}>
-                <TouchableOpacity
-                  style={styles.cancelEditBtn}
-                  onPress={onClose}
-                  activeOpacity={0.7}
-                  disabled={isSubmitting}
-                >
-                  <Text style={styles.cancelEditBtnText}>
-                    {language === 'zh' ? '取消' : 'Cancel'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.submitBtn,
-                    styles.saveEditBtnInRow,
-                    { backgroundColor: themeColor },
-                    isSubmitting && { opacity: 0.7 },
-                  ]}
-                  onPress={handleSubmit}
-                  activeOpacity={0.8}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.submitBtnText}>
-                      {language === 'zh' ? '保存更新' : 'Save Changes'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[
-                  styles.submitBtn,
-                  { backgroundColor: themeColor },
-                  isSubmitting && { opacity: 0.7 },
-                ]}
-                onPress={handleSubmit}
-                disabled={isSubmitting}
-                activeOpacity={0.8}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitBtnText}>
-                    {isBuy ? t('transaction.confirmBuy', language) : t('transaction.confirmSell', language)}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
+              </>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -1179,6 +1353,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#EF4444',
   },
+  toggleBtnActiveDeposit: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
   toggleBtnText: {
     color: '#94A3B8',
     fontSize: 14,
@@ -1228,48 +1407,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  platformRow: {
+  platformIconRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 10,
   },
-  platformChip: {
+  platformIconCard: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#1E293B',
+    borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  platformChipSelected: {
-    borderColor: '#3B82F6',
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-  },
-  pBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  platformName: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  platformNameSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+  platformCardSelected: {
+    borderColor: '#38BDF8',
+    backgroundColor: 'rgba(56, 189, 248, 0.16)',
   },
   inputBox: {
     backgroundColor: 'rgba(18, 26, 43, 0.9)',
@@ -1580,4 +1735,98 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
+  currencyRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  currencyChip: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currencyChipSelected: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderColor: '#3B82F6',
+  },
+  currencyChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  currencyChipTextSelected: {
+    color: '#60A5FA',
+    fontWeight: '700',
+  },
+  isolationNoticeBox: {
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 4,
+  },
+  isolationNoticeText: {
+    fontSize: 12,
+    color: '#93C5FD',
+    lineHeight: 18,
+  },
+  capitalShortfallBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  capitalShortfallInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  capitalShortfallTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#F87171',
+    marginBottom: 2,
+  },
+  capitalShortfallText: {
+    fontSize: 12,
+    color: '#FCA5A5',
+    lineHeight: 16,
+  },
+  goToDepositBtn: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  goToDepositBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sellProceedsBox: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
+  },
+  sellProceedsText: {
+    fontSize: 12,
+    color: '#34D399',
+    lineHeight: 16,
+  },
 });
+
