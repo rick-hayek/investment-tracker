@@ -82,6 +82,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [importExportModalVisible, setImportExportModalVisible] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
 
+  // 二级视图导航状态: 'main' 为主设置页, 'platforms' 为交易所平台管理
+  const [activeSubView, setActiveSubView] = useState<'main' | 'platforms'>('main');
+
+  useEffect(() => {
+    if (!visible) {
+      setActiveSubView('main');
+    }
+  }, [visible]);
+
   // 自定义提示框状态
   const [alertConfig, setAlertConfig] = useState<{
     visible: boolean;
@@ -512,18 +521,91 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={() => {
+        if (activeSubView === 'platforms') {
+          setActiveSubView('main');
+        } else {
+          onClose();
+        }
+      }}
+    >
       <SafeAreaView style={[styles.safeContainer, { backgroundColor: colors.background }]}>
         {/* 顶部导航栏 */}
         <View style={styles.navBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={onClose} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => {
+              if (activeSubView === 'platforms') {
+                setActiveSubView('main');
+              } else {
+                onClose();
+              }
+            }}
+            activeOpacity={0.7}
+          >
             <ChevronLeftIcon size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={[styles.navTitle, { color: colors.textPrimary }]}>{t('drawer.settingsAndProfile', lang)}</Text>
+          <Text style={[styles.navTitle, { color: colors.textPrimary }]}>
+            {activeSubView === 'platforms'
+              ? t('settings.platformManagement', lang)
+              : t('drawer.settingsAndProfile', lang)}
+          </Text>
           <View style={styles.navRightPlaceholder} />
         </View>
 
-        <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+        {activeSubView === 'platforms' ? (
+          /* 二级页面：交易所 / 平台管理 */
+          <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+            {/* 提示说明卡片 */}
+            <View style={[styles.platformNoticeCard, { backgroundColor: colors.cardBackgroundSecondary, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.platformNoticeText, { color: colors.textSecondary }]}>
+                {t('settings.platformPageNotice', lang)}
+              </Text>
+            </View>
+
+            {/* 交易所开关列表 */}
+            <View style={[styles.cardGroup, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+              {PLATFORM_CONFIGS.map((platItem, index) => {
+                const isEnabled = enabledPlatforms.includes(platItem.key);
+                return (
+                  <React.Fragment key={platItem.key}>
+                    {index > 0 && <View style={[styles.divider, { backgroundColor: colors.divider }]} />}
+                    <View style={styles.rowItem}>
+                      <View style={styles.rowLeft}>
+                        <View style={styles.iconContainer}>
+                          {renderPlatformLogo(platItem.key, 24)}
+                        </View>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>
+                            {lang === 'zh' ? platItem.nameZh : platItem.nameEn}
+                          </Text>
+                          <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                            {lang === 'zh' ? platItem.descZh : platItem.descEn}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.switchWrapper}>
+                        <Switch
+                          value={isEnabled}
+                          onValueChange={(val) => handleTogglePlatform(platItem.key, val)}
+                          trackColor={{ false: isDark ? '#334155' : '#CBD5E1', true: colors.gain }}
+                          thumbColor="#F8FAFC"
+                        />
+                      </View>
+                    </View>
+                  </React.Fragment>
+                );
+              })}
+            </View>
+
+            <View style={styles.bottomSpacer} />
+          </ScrollView>
+        ) : (
+          <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
           {/* 用户只有在云端同步登录 Google Drive 之后才在原来位置显示用户信息 */}
           {settings.cloudUser ? (
             <View style={[styles.profileCard, { backgroundColor: colors.cardBackgroundSecondary, borderColor: colors.cardBorder }]}>
@@ -628,37 +710,33 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {/* Section: 交易所 / 平台管理 */}
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('settings.platformManagement', lang)}</Text>
           <View style={[styles.cardGroup, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-            {PLATFORM_CONFIGS.map((platItem, index) => {
-              const isEnabled = enabledPlatforms.includes(platItem.key);
-              return (
-                <React.Fragment key={platItem.key}>
-                  {index > 0 && <View style={[styles.divider, { backgroundColor: colors.divider }]} />}
-                  <View style={styles.rowItem}>
-                    <View style={styles.rowLeft}>
-                      <View style={styles.iconContainer}>
-                        {renderPlatformLogo(platItem.key, 24)}
-                      </View>
-                      <View style={{ flex: 1, paddingRight: 8 }}>
-                        <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>
-                          {lang === 'zh' ? platItem.nameZh : platItem.nameEn}
-                        </Text>
-                        <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
-                          {lang === 'zh' ? platItem.descZh : platItem.descEn}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.switchWrapper}>
-                      <Switch
-                        value={isEnabled}
-                        onValueChange={(val) => handleTogglePlatform(platItem.key, val)}
-                        trackColor={{ false: isDark ? '#334155' : '#CBD5E1', true: colors.gain }}
-                        thumbColor="#F8FAFC"
-                      />
-                    </View>
-                  </View>
-                </React.Fragment>
-              );
-            })}
+            <TouchableOpacity
+              style={styles.rowItem}
+              onPress={() => setActiveSubView('platforms')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.rowLeft}>
+                <View style={styles.iconContainer}>
+                  {renderPlatformLogo(enabledPlatforms[0] || 'Binance', 22)}
+                </View>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>
+                    {t('settings.platformManagement', lang)}
+                  </Text>
+                  <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {t('settings.platformManagementSubtitle', lang)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.rowRight}>
+                <Text style={[styles.rowRightValue, { color: colors.textSecondary }]}>
+                  {enabledPlatforms.length === 1
+                    ? (PLATFORM_CONFIGS.find((p) => p.key === enabledPlatforms[0])?.nameZh.split(' ')[0] || enabledPlatforms[0])
+                    : `${enabledPlatforms.length} ${lang === 'zh' ? '个平台' : 'Active'}`}
+                </Text>
+                <ChevronRightIcon size={16} color={colors.textMuted} />
+              </View>
+            </TouchableOpacity>
           </View>
 
           {/* Section 2: Data Management */}
@@ -757,6 +835,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
+        )}
 
         {/* 数据导入导出快捷操作面板 (支持 CSV 与 JSON) */}
         <Modal
@@ -884,6 +963,17 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 12,
+  },
+  platformNoticeCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  platformNoticeText: {
+    fontSize: 13,
+    lineHeight: 19,
   },
   profileCard: {
     flexDirection: 'row',

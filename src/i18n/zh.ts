@@ -60,6 +60,7 @@ export const zh: TranslationDictionary = {
     language: '界面语言',
     platformManagement: '交易所 / 平台管理',
     platformManagementSubtitle: '配置在记账与充提时可选的交易所平台',
+    platformPageNotice: '开启或关闭在记账录入与本金充提时可选的交易所平台。根据安全规则，系统至少保留启用 1 个交易所。停用平台不会影响历史记账数据与总资产核算。',
     atLeastOnePlatformWarning: '至少需要保留启用一个交易平台',
     platformShowInForms: '在记账与入金列表中显示',
     exchangesAndData: '数据管理',

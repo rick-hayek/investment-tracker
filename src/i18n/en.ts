@@ -60,6 +60,7 @@ export const en: TranslationDictionary = {
     language: 'Language',
     platformManagement: 'Exchanges & Platforms',
     platformManagementSubtitle: 'Configure exchanges shown in transaction and deposit lists',
+    platformPageNotice: 'Configure exchanges displayed in transaction and deposit forms. At least 1 exchange must remain active. Hiding an exchange will not affect existing assets or history.',
     atLeastOnePlatformWarning: 'At least one exchange platform must remain enabled',
     platformShowInForms: 'Show in transaction & deposit lists',
     exchangesAndData: 'Data Management',

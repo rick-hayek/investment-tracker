@@ -60,6 +60,7 @@ export interface TranslationDictionary {
     language: string;
     platformManagement: string;
     platformManagementSubtitle: string;
+    platformPageNotice: string;
     atLeastOnePlatformWarning: string;
     platformShowInForms: string;
     exchangesAndData: string;
