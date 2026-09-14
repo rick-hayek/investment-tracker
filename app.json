@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.rick.investmenttracker",
+      "bundleIdentifier": "com.rhlmtdinc.investmenttracker",
       "infoPlist": {
         "NSFaceIDUsageDescription": "使用 Face ID 保护您的投资资产隐私。"
       }
@@ -22,13 +22,14 @@
       "adaptiveIcon": {
         "backgroundColor": "#090D16"
       },
-      "package": "com.rick.investmenttracker"
+      "package": "com.rhlmtdinc.investmenttracker"
     },
     "web": {
       "bundler": "metro"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-sqlite"
     ]
   }
 }

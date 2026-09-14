@@ -13,6 +13,7 @@ import {
 import { Asset, Transaction, AssetHolding, TransactionType, PlatformType, CurrencyType, UserSettings, Deposit, DepositCurrency, CapitalOperationType } from './src/domain/types';
 import { PnLEngine } from './src/domain/calculations/pnlEngine';
 import { getNextCurrency, formatCurrencyValue } from './src/domain/currency';
+import { initializeDatabase } from './src/database/db';
 import { AssetRepository } from './src/database/repositories/assetRepository';
 import { TransactionRepository } from './src/database/repositories/transactionRepository';
 import { DepositRepository } from './src/database/repositories/depositRepository';
@@ -77,8 +78,31 @@ export default function App() {
   const [marketPrices, setMarketPrices] = useState<Record<string, { price: number; change24h: number }>>({});
   const [refreshing, setRefreshing] = useState(false);
 
-  // 初始化用户偏好配置与后台状态监听
+  const [isDbReady, setIsDbReady] = useState(false);
+
+  // 初始化本地 SQLite 数据库与表结构迁移
   useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await initializeDatabase();
+        if (mounted) {
+          setIsDbReady(true);
+        }
+      } catch (err) {
+        console.warn('Failed to initialize database:', err);
+        if (mounted) setIsDbReady(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 数据库就绪后加载用户偏好配置与后台状态监听
+  useEffect(() => {
+    if (!isDbReady) return;
+
     (async () => {
       try {
         const saved = await settingsRepo.getSettings();
@@ -98,7 +122,7 @@ export default function App() {
     });
 
     return () => sub.remove();
-  }, [settingsRepo]);
+  }, [isDbReady, settingsRepo]);
 
   // 更新并持久化用户配置
   const handleUpdateSettings = async (partial: Partial<UserSettings>) => {
@@ -174,8 +198,9 @@ export default function App() {
   }, [assetRepo, txRepo, depositRepo, settingsRepo, reloadData]);
 
   useEffect(() => {
+    if (!isDbReady) return;
     initSeedData();
-  }, [initSeedData]);
+  }, [isDbReady, initSeedData]);
 
   // 刷新所有资产的实时市场价格
   const refreshPrices = useCallback(async () => {
@@ -712,6 +737,7 @@ function AppContent({
         txRepo={txRepo}
         platformBalances={summary.platformBalances}
         exchangeService={defaultExchangeService}
+        enabledPlatforms={userSettings.enabledPlatforms}
       />
 
       {/* 交易所本金充值与提现独立弹窗 */}
@@ -723,6 +749,7 @@ function AppContent({
         language={currentLanguage}
         platformBalances={summary.platformBalances}
         depositRepo={depositRepo}
+        enabledPlatforms={userSettings.enabledPlatforms}
         onClose={() => setDepositModalVisible(false)}
         onSuccess={handleTransactionSuccess}
       />

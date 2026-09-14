@@ -8,6 +8,7 @@ module.exports = {
     '^expo-file-system$': '<rootDir>/__mocks__/expo-file-system.js',
     '^expo-sharing$': '<rootDir>/__mocks__/expo-sharing.js',
     '^expo-document-picker$': '<rootDir>/__mocks__/expo-document-picker.js',
+    '^expo-sqlite$': '<rootDir>/__mocks__/expo-sqlite.js',
   },
   testMatch: ['**/__tests__/**/*.test.ts'],
   transform: {

@@ -10,7 +10,7 @@ import {
   Switch,
   ActivityIndicator,
 } from 'react-native';
-import { CurrencyType, UserSettings, Asset, Transaction, Deposit, ThemeMode } from '../../domain/types';
+import { CurrencyType, UserSettings, Asset, Transaction, Deposit, ThemeMode, PlatformType, ALL_PLATFORMS_ALPHABETICAL } from '../../domain/types';
 import { CURRENCY_CONFIGS, getNextCurrency } from '../../domain/currency';
 import { defaultForexService, ForexRateInfo } from '../../services/forexService';
 import { DataExportService } from '../../services/dataExportService';
@@ -34,8 +34,16 @@ import {
   UserAvatarIcon,
   TrashCanIcon,
   ImportExportIcon,
+  renderPlatformLogo,
 } from '../common/Icons';
 import { CustomAlertModal, AlertType, AlertButton } from '../common/CustomAlertModal';
+
+const PLATFORM_CONFIGS: { key: PlatformType; nameZh: string; nameEn: string; descZh: string; descEn: string }[] = [
+  { key: 'Binance', nameZh: 'Binance (币安)', nameEn: 'Binance', descZh: '全球交易量领先的加密资产交易所', descEn: 'Leading global crypto exchange' },
+  { key: 'Coinbase', nameZh: 'Coinbase', nameEn: 'Coinbase', descZh: '美国合规上市加密货币交易平台', descEn: 'US regulated crypto trading platform' },
+  { key: 'CoinGecko', nameZh: 'CoinGecko', nameEn: 'CoinGecko', descZh: '权威独立加密资产行情聚合数据', descEn: 'Global independent crypto data aggregator' },
+  { key: 'OKX', nameZh: 'OKX (欧易)', nameEn: 'OKX', descZh: '全球知名数字资产现货与衍生品平台', descEn: 'Leading crypto spot & derivatives platform' },
+];
 
 export interface SettingsScreenProps {
   visible: boolean;
@@ -385,6 +393,32 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
+  // 切换交易所平台显示状态
+  const enabledPlatforms = settings.enabledPlatforms || [...ALL_PLATFORMS_ALPHABETICAL];
+  const handleTogglePlatform = (targetPlatform: PlatformType, val: boolean) => {
+    const current = settings.enabledPlatforms || [...ALL_PLATFORMS_ALPHABETICAL];
+    if (val) {
+      if (!current.includes(targetPlatform)) {
+        const next = ALL_PLATFORMS_ALPHABETICAL.filter(
+          (p) => p === targetPlatform || current.includes(p)
+        );
+        onUpdateSettings({ enabledPlatforms: next });
+      }
+    } else {
+      if (current.length <= 1) {
+        showAlert(
+          t('common.tip', lang),
+          t('settings.atLeastOnePlatformWarning', lang),
+          undefined,
+          'warning'
+        );
+        return;
+      }
+      const next = current.filter((p) => p !== targetPlatform);
+      onUpdateSettings({ enabledPlatforms: next });
+    }
+  };
+
   // 点击云端同步 (Google Drive 授权登录与状态管理)
   const handlePressCloudSync = () => {
     if (settings.cloudUser) {
@@ -590,6 +624,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </View>
             </TouchableOpacity> */}
           {/* </View> */}
+
+          {/* Section: 交易所 / 平台管理 */}
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('settings.platformManagement', lang)}</Text>
+          <View style={[styles.cardGroup, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+            {PLATFORM_CONFIGS.map((platItem, index) => {
+              const isEnabled = enabledPlatforms.includes(platItem.key);
+              return (
+                <React.Fragment key={platItem.key}>
+                  {index > 0 && <View style={[styles.divider, { backgroundColor: colors.divider }]} />}
+                  <View style={styles.rowItem}>
+                    <View style={styles.rowLeft}>
+                      <View style={styles.iconContainer}>
+                        {renderPlatformLogo(platItem.key, 24)}
+                      </View>
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>
+                          {lang === 'zh' ? platItem.nameZh : platItem.nameEn}
+                        </Text>
+                        <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {lang === 'zh' ? platItem.descZh : platItem.descEn}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.switchWrapper}>
+                      <Switch
+                        value={isEnabled}
+                        onValueChange={(val) => handleTogglePlatform(platItem.key, val)}
+                        trackColor={{ false: isDark ? '#334155' : '#CBD5E1', true: colors.gain }}
+                        thumbColor="#F8FAFC"
+                      />
+                    </View>
+                  </View>
+                </React.Fragment>
+              );
+            })}
+          </View>
 
           {/* Section 2: Data Management */}
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('settings.dataManagement', lang)}</Text>

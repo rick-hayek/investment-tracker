@@ -18,7 +18,8 @@ import { DepositRepository } from '../../database/repositories/depositRepository
 import { PnLEngine } from '../../domain/calculations/pnlEngine';
 import { LanguageType, t } from '../../i18n';
 import { formatCurrentDateTime, parseTransactionDateTime } from '../../utils/dateUtils';
-import { CloseCrossIcon, LockIcon, renderPlatformLogo } from '../common/Icons';
+import { CloseCrossIcon, LockIcon, CalendarIcon, ChevronRightIcon, renderPlatformLogo } from '../common/Icons';
+import { DateTimePickerModal } from '../common/DateTimePickerModal';
 
 export interface DepositModalProps {
   visible: boolean;
@@ -30,31 +31,48 @@ export interface DepositModalProps {
   depositRepo?: DepositRepository;
   onClose: () => void;
   onSuccess?: () => void;
+  enabledPlatforms?: PlatformType[];
 }
 
 const PLATFORMS: { key: PlatformType; label: string; badge: string; badgeBg: string }[] = [
-  { key: 'OKX', label: 'OKX', badge: 'OK', badgeBg: '#1E293B' },
   { key: 'Binance', label: 'Binance', badge: 'B', badgeBg: '#F59E0B' },
-  { key: 'CoinGecko', label: 'CoinGecko', badge: 'CG', badgeBg: '#10B981' },
   { key: 'Coinbase', label: 'Coinbase', badge: 'C', badgeBg: '#3B82F6' },
+  { key: 'CoinGecko', label: 'CoinGecko', badge: 'CG', badgeBg: '#10B981' },
+  { key: 'OKX', label: 'OKX', badge: 'OK', badgeBg: '#1E293B' },
 ];
 
 export const DepositModal: React.FC<DepositModalProps> = ({
   visible,
   initialType = 'DEPOSIT',
-  initialPlatform = 'OKX',
+  initialPlatform = 'Binance',
   initialCurrency = 'USDT',
   language = 'zh',
   platformBalances,
   depositRepo,
   onClose,
   onSuccess,
+  enabledPlatforms,
 }) => {
   const [activeTab, setActiveTab] = useState<CapitalOperationType>(initialType);
-  const [platform, setPlatform] = useState<PlatformType>(initialPlatform);
+
+  const displayedPlatforms = useMemo(() => {
+    if (enabledPlatforms && enabledPlatforms.length > 0) {
+      return PLATFORMS.filter((p) => enabledPlatforms.includes(p.key));
+    }
+    return PLATFORMS;
+  }, [enabledPlatforms]);
+
+  const [platform, setPlatform] = useState<PlatformType>(() => {
+    if (enabledPlatforms && enabledPlatforms.length > 0 && !enabledPlatforms.includes(initialPlatform)) {
+      return enabledPlatforms[0];
+    }
+    return initialPlatform;
+  });
+
   const currency: DepositCurrency = 'USDT';
   const [amountStr, setAmountStr] = useState('');
   const [dateStr, setDateStr] = useState('');
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,14 +81,24 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   useEffect(() => {
     if (visible) {
       setActiveTab(initialType || 'DEPOSIT');
-      setPlatform(initialPlatform || 'OKX');
+      let targetPlat = initialPlatform || 'Binance';
+      if (enabledPlatforms && enabledPlatforms.length > 0 && !enabledPlatforms.includes(targetPlat)) {
+        targetPlat = enabledPlatforms[0];
+      }
+      setPlatform(targetPlat);
       setAmountStr('');
       setDateStr('');
       setNotes('');
       setErrorMessage(null);
-      setIsSubmitting(false);
     }
-  }, [visible, initialType, initialPlatform, initialCurrency]);
+  }, [visible, initialType, initialPlatform, enabledPlatforms]);
+
+  // 当可用平台发生变化且当前选中的平台不在其中时，自动调整为第一个可用平台
+  useEffect(() => {
+    if (displayedPlatforms.length > 0 && !displayedPlatforms.some((p) => p.key === platform)) {
+      setPlatform(displayedPlatforms[0].key);
+    }
+  }, [displayedPlatforms, platform]);
 
   // 当前所选平台与币种的可用余额 (统一为 USDT)
   const currentAvailableBalance = useMemo(() => {
@@ -221,37 +249,68 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                 showsVerticalScrollIndicator={false}
               >
                 {/* 1. 目标平台选择 */}
-                <View style={styles.formGroup}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.formLabel}>
-                      {activeTab === 'DEPOSIT' ? t('deposit.targetPlatform', language) : t('deposit.withdrawTargetPlatform', language)}
-                    </Text>
-                    <Text style={styles.holdingInfoText}>
-                      {t('deposit.currentPlatformBalance', language, { platform })}: ${currentAvailableBalance.toFixed(2)}
-                    </Text>
+                {displayedPlatforms.length === 1 ? (
+                  <View style={styles.singlePlatformBar}>
+                    <View style={styles.singlePlatformLeft}>
+                      {renderPlatformLogo(displayedPlatforms[0].key, 20)}
+                      <Text style={styles.singlePlatformText}>
+                        {displayedPlatforms[0].label} {language === 'zh' ? '可用:' : 'Available:'}
+                      </Text>
+                      <Text style={styles.singlePlatformBalanceVal}>
+                        ${currentAvailableBalance.toFixed(2)}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.platformIconRow}>
-                    {PLATFORMS.map((item) => {
-                      const isSelected = platform === item.key;
-                      return (
-                        <TouchableOpacity
-                          key={item.key}
-                          style={[
-                            styles.platformIconCard,
-                            isSelected &&
-                              (activeTab === 'DEPOSIT'
-                                ? styles.platformCardDepositSelected
-                                : styles.platformCardWithdrawSelected),
-                          ]}
-                          onPress={() => setPlatform(item.key)}
-                          activeOpacity={0.7}
-                        >
-                          {renderPlatformLogo(item.key, 30)}
-                        </TouchableOpacity>
-                      );
-                    })}
+                ) : (
+                  <View style={styles.formGroup}>
+                    <View style={styles.labelRow}>
+                      <Text style={styles.formLabel}>
+                        {activeTab === 'DEPOSIT' ? t('deposit.targetPlatform', language) : t('deposit.withdrawTargetPlatform', language)}
+                      </Text>
+                      <Text style={styles.holdingInfoText}>
+                        {t('deposit.currentPlatformBalance', language, { platform })}: ${currentAvailableBalance.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.platformIconRow}>
+                      {displayedPlatforms.map((item) => {
+                        const isSelected = platform === item.key;
+                        const showName = displayedPlatforms.length <= 2;
+                        const isDeposit = activeTab === 'DEPOSIT';
+                        return (
+                          <TouchableOpacity
+                            key={item.key}
+                            style={[
+                              styles.platformIconCard,
+                              showName && styles.platformIconCardWithName,
+                              isSelected &&
+                                (isDeposit
+                                  ? styles.platformCardDepositSelected
+                                  : styles.platformCardWithdrawSelected),
+                            ]}
+                            onPress={() => setPlatform(item.key)}
+                            activeOpacity={0.7}
+                          >
+                            {renderPlatformLogo(item.key, showName ? 24 : 28)}
+                            {showName && (
+                              <Text
+                                style={[
+                                  styles.platformCardNameText,
+                                  isSelected &&
+                                    (isDeposit
+                                      ? styles.platformCardDepositNameSelected
+                                      : styles.platformCardWithdrawNameSelected),
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {item.label}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </View>
-                </View>
+                )}
 
                 {/* 2. 充值 / 提现 金额输入 (统一为 USDT) */}
                 <View style={styles.formGroup}>
@@ -296,13 +355,46 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                       <Text style={styles.currentTimeBtn}>{t('transaction.useCurrentTime', language)}</Text>
                     </TouchableOpacity>
                   </View>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder={t('transaction.txDatePlaceholder', language)}
-                    placeholderTextColor="#64748B"
-                    value={dateStr}
-                    onChangeText={setDateStr}
-                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.datePickerTrigger,
+                      dateStr.trim().length > 0 && styles.datePickerTriggerActive,
+                    ]}
+                    onPress={() => setIsDatePickerOpen(true)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.datePickerTriggerLeft}>
+                      <CalendarIcon
+                        size={18}
+                        color={dateStr.trim().length > 0 ? '#38BDF8' : '#64748B'}
+                      />
+                      <Text
+                        style={[
+                          styles.datePickerTriggerText,
+                          !dateStr.trim() && styles.datePickerTriggerPlaceholder,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {dateStr.trim() || t('transaction.txDatePlaceholder', language)}
+                      </Text>
+                    </View>
+                    {dateStr.trim().length > 0 ? (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setDateStr('');
+                        }}
+                        style={styles.dateTriggerClearBtn}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <View style={styles.clearIconCircle}>
+                          <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                        </View>
+                      </TouchableOpacity>
+                    ) : (
+                      <ChevronRightIcon size={16} color="#64748B" />
+                    )}
+                  </TouchableOpacity>
                 </View>
 
                 {/* 5. 备注 (可选) */}
@@ -362,6 +454,21 @@ export const DepositModal: React.FC<DepositModalProps> = ({
         </View>
       </TouchableWithoutFeedback>
 
+      {/* 现代暗黑质感日期时间选择器 */}
+      <DateTimePickerModal
+        visible={isDatePickerOpen}
+        initialValue={dateStr}
+        language={language}
+        onConfirm={(val) => {
+          setDateStr(val);
+          if (errorMessage) setErrorMessage(null);
+        }}
+        onClear={() => {
+          setDateStr('');
+          if (errorMessage) setErrorMessage(null);
+        }}
+        onClose={() => setIsDatePickerOpen(false)}
+      />
     </Modal>
   );
 };
@@ -472,6 +579,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  singlePlatformBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(18, 26, 43, 0.7)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  singlePlatformLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  singlePlatformText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  singlePlatformBalanceVal: {
+    color: '#38BDF8',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   maxWithdrawBtnText: {
     color: '#F43F5E',
     fontSize: 12,
@@ -479,11 +613,12 @@ const styles = StyleSheet.create({
   },
   platformIconRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 10,
   },
   platformIconCard: {
     flex: 1,
+    minWidth: '22%',
     height: 52,
     borderRadius: 14,
     backgroundColor: '#1E293B',
@@ -491,6 +626,24 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  platformIconCardWithName: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  platformCardNameText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  platformCardDepositNameSelected: {
+    color: '#38BDF8',
+    fontWeight: '700',
+  },
+  platformCardWithdrawNameSelected: {
+    color: '#F43F5E',
+    fontWeight: '700',
   },
   platformCardDepositSelected: {
     borderColor: '#38BDF8',
@@ -570,6 +723,49 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontSize: 12,
     fontWeight: '600',
+  },
+  datePickerTrigger: {
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  datePickerTriggerActive: {
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+  },
+  datePickerTriggerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 8,
+  },
+  datePickerTriggerText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  datePickerTriggerPlaceholder: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  dateTriggerClearBtn: {
+    padding: 2,
+  },
+  clearIconCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   fieldErrorText: {
     color: '#F43F5E',

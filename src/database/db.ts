@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { ALL_MIGRATIONS } from './schema';
 import { MemorySqliteAdapter } from './adapters/memorySqliteAdapter';
 
@@ -10,6 +11,7 @@ export interface IDatabaseConnection {
   run(sql: string, params?: any[]): Promise<{ changes: number; lastInsertRowId?: number }> | { changes: number; lastInsertRowId?: number };
   get<T>(sql: string, params?: any[]): Promise<T | null> | (T | null);
   all<T>(sql: string, params?: any[]): Promise<T[]> | T[];
+  close?(): Promise<void> | void;
 }
 
 let activeDb: IDatabaseConnection | null = null;
@@ -20,9 +22,20 @@ export function setDatabaseInstance(db: IDatabaseConnection) {
 
 export function getDatabaseInstance(): IDatabaseConnection {
   if (!activeDb) {
-    activeDb = new MemorySqliteAdapter();
+    if (Platform && Platform.OS === 'web') {
+      activeDb = new MemorySqliteAdapter();
+    } else {
+      try {
+        // 在原生环境 (iOS / Android) 动态引入 ExpoSqliteAdapter 读写本地 SQLite 文件
+        const { ExpoSqliteAdapter } = require('./adapters/expoSqliteAdapter');
+        activeDb = new ExpoSqliteAdapter('investment_tracker.db');
+      } catch (err) {
+        console.warn('ExpoSqliteAdapter 初始化异常，降级使用 MemorySqliteAdapter:', err);
+        activeDb = new MemorySqliteAdapter();
+      }
+    }
   }
-  return activeDb;
+  return activeDb!;
 }
 
 /**
@@ -42,4 +55,13 @@ export async function runMigrations(db: IDatabaseConnection): Promise<void> {
   } catch {
     // 字段已存在时忽略错误
   }
+}
+
+/**
+ * 初始化全局数据库连接并执行表结构迁移
+ */
+export async function initializeDatabase(): Promise<IDatabaseConnection> {
+  const db = getDatabaseInstance();
+  await runMigrations(db);
+  return db;
 }

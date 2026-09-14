@@ -20,12 +20,15 @@ import { ExchangeService, defaultExchangeService } from '../../services/exchange
 import { extractBaseSymbol, resolveCoinGeckoId, KNOWN_ASSETS } from '../../services/symbolMapper';
 import { LanguageType, t } from '../../i18n';
 import { CustomAlertModal, AlertType, AlertButton } from '../common/CustomAlertModal';
+import { DateTimePickerModal } from '../common/DateTimePickerModal';
 
 import {
   CloseCrossIcon,
   SearchIcon,
   LockIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
+  CalendarIcon,
   TrashCanIcon,
   BtcLogo,
   EthLogo,
@@ -50,13 +53,14 @@ export interface AddTransactionModalProps {
   txRepo?: TransactionRepository;
   platformBalances?: Record<PlatformType, { usdt: number; usdc: number; totalUSD: number }>;
   exchangeService?: ExchangeService;
+  enabledPlatforms?: PlatformType[];
 }
 
 const PLATFORMS: { key: PlatformType; label: string; badge: string; badgeBg: string }[] = [
-  { key: 'OKX', label: 'OKX', badge: 'OK', badgeBg: '#1E293B' },
   { key: 'Binance', label: 'Binance', badge: 'B', badgeBg: '#F59E0B' },
-  { key: 'CoinGecko', label: 'CoinGecko', badge: 'CG', badgeBg: '#10B981' },
   { key: 'Coinbase', label: 'Coinbase', badge: 'C', badgeBg: '#3B82F6' },
+  { key: 'CoinGecko', label: 'CoinGecko', badge: 'CG', badgeBg: '#10B981' },
+  { key: 'OKX', label: 'OKX', badge: 'OK', badgeBg: '#1E293B' },
 ];
 
 import { formatCurrentDateTime, parseTransactionDateTime } from '../../utils/dateUtils';
@@ -79,6 +83,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   txRepo,
   platformBalances,
   exchangeService = defaultExchangeService,
+  enabledPlatforms,
 }) => {
   const isEditing = !!editingTransaction;
   const [activeTab, setActiveTab] = useState<'BUY' | 'SELL'>(
@@ -88,11 +93,36 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     initialType === 'SELL' ? 'SELL' : 'BUY'
   );
   const [fundingCurrency, setFundingCurrency] = useState<DepositCurrency>('USDT');
-  const [platform, setPlatform] = useState<PlatformType>(initialPlatform);
+
+  const displayedPlatforms = useMemo(() => {
+    if (lockAsset) {
+      return PLATFORMS;
+    }
+    if (enabledPlatforms && enabledPlatforms.length > 0) {
+      return PLATFORMS.filter((p) => enabledPlatforms.includes(p.key));
+    }
+    return PLATFORMS;
+  }, [enabledPlatforms, lockAsset]);
+
+  const [platform, setPlatform] = useState<PlatformType>(() => {
+    if (lockAsset) return initialPlatform;
+    if (enabledPlatforms && enabledPlatforms.length > 0 && !enabledPlatforms.includes(initialPlatform)) {
+      return enabledPlatforms[0];
+    }
+    return initialPlatform;
+  });
+
+  // 当外部启用的平台列表发生变化且当前选中的平台不在其中时，自动调整为第一个可用平台
+  useEffect(() => {
+    if (!lockAsset && displayedPlatforms.length > 0 && !displayedPlatforms.some(p => p.key === platform)) {
+      setPlatform(displayedPlatforms[0].key);
+    }
+  }, [displayedPlatforms, platform, lockAsset]);
   const [symbol, setSymbol] = useState(initialSymbol);
   const [priceStr, setPriceStr] = useState('');
   const [amountStr, setAmountStr] = useState('');
   const [dateStr, setDateStr] = useState('');
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [isHoldingDropdownOpen, setIsHoldingDropdownOpen] = useState(false);
   
@@ -896,32 +926,59 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   ) : (
                     /* 从首页“记一笔”开始买入：自由选择平台和代币 (默认 USDT 稳定币) */
                     <>
-                      <View style={styles.formGroup}>
-                        <View style={styles.labelRow}>
-                          <Text style={styles.formLabel}>{t('transaction.selectPlatform', language)}</Text>
-                          <Text style={styles.holdingInfoText}>
-                            {t('deposit.currentPlatformBalance', language, { platform })}: ${currentPlatformCapital.toFixed(2)}
-                          </Text>
+                      {displayedPlatforms.length === 1 ? (
+                        <View style={styles.singlePlatformBar}>
+                          <View style={styles.singlePlatformLeft}>
+                            {renderPlatformLogo(displayedPlatforms[0].key, 20)}
+                            <Text style={styles.singlePlatformText}>
+                              {displayedPlatforms[0].label} {language === 'zh' ? '可用:' : 'Available:'}
+                            </Text>
+                            <Text style={styles.singlePlatformBalanceVal}>
+                              ${currentPlatformCapital.toFixed(2)}
+                            </Text>
+                          </View>
                         </View>
-                        <View style={styles.platformIconRow}>
-                          {PLATFORMS.map((item) => {
-                            const isSelected = platform === item.key;
-                            return (
-                              <TouchableOpacity
-                                key={item.key}
-                                style={[
-                                  styles.platformIconCard,
-                                  isSelected && styles.platformCardSelected,
-                                ]}
-                                onPress={() => handleSelectPlatform(item.key)}
-                                activeOpacity={0.7}
-                              >
-                                {renderPlatformLogo(item.key, 30)}
-                              </TouchableOpacity>
-                            );
-                          })}
+                      ) : (
+                        <View style={styles.formGroup}>
+                          <View style={styles.labelRow}>
+                            <Text style={styles.formLabel}>{t('transaction.selectPlatform', language)}</Text>
+                            <Text style={styles.holdingInfoText}>
+                              {t('deposit.currentPlatformBalance', language, { platform })}: ${currentPlatformCapital.toFixed(2)}
+                            </Text>
+                          </View>
+                          <View style={styles.platformIconRow}>
+                            {displayedPlatforms.map((item) => {
+                              const isSelected = platform === item.key;
+                              const showName = displayedPlatforms.length <= 2;
+                              return (
+                                <TouchableOpacity
+                                  key={item.key}
+                                  style={[
+                                    styles.platformIconCard,
+                                    showName && styles.platformIconCardWithName,
+                                    isSelected && styles.platformCardSelected,
+                                  ]}
+                                  onPress={() => handleSelectPlatform(item.key)}
+                                  activeOpacity={0.7}
+                                >
+                                  {renderPlatformLogo(item.key, showName ? 24 : 28)}
+                                  {showName && (
+                                    <Text
+                                      style={[
+                                        styles.platformCardNameText,
+                                        isSelected && styles.platformCardNameTextSelected,
+                                      ]}
+                                      numberOfLines={1}
+                                    >
+                                      {item.label}
+                                    </Text>
+                                  )}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
                         </View>
-                      </View>
+                      )}
 
                       {/* 资金不足缺口提示条 */}
                       {buyShortfall > 0 && (
@@ -951,14 +1008,29 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
                       <View style={styles.formGroup}>
                         <Text style={styles.formLabel}>{t('transaction.tokenSymbol', language)}</Text>
-                        <TextInput
-                          style={styles.inputBox}
-                          value={symbol}
-                          onChangeText={(val) => setSymbol(val.toUpperCase())}
-                          placeholder="BTC / ETH / SOL"
-                          placeholderTextColor="#64748B"
-                          autoCapitalize="characters"
-                        />
+                        <View style={styles.inputWithClearWrapper}>
+                          <TextInput
+                            style={styles.inputBoxWithClear}
+                            value={symbol}
+                            onChangeText={(val) => setSymbol(val.toUpperCase())}
+                            placeholder="BTC / ETH / SOL"
+                            placeholderTextColor="#64748B"
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                          />
+                          {symbol.length > 0 && (
+                            <TouchableOpacity
+                              style={styles.clearInputBtn}
+                              onPress={() => setSymbol('')}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.clearIconCircle}>
+                                <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                              </View>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                         <Text style={styles.helperText}>{formatHint}</Text>
                       </View>
                     </>
@@ -1186,17 +1258,49 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                       </TouchableOpacity>
                     </View>
                   </View>
-                  <TextInput
-                    style={styles.inputBox}
-                    value={dateStr}
-                    onChangeText={(val) => {
-                      setDateStr(val);
-                      if (errorMessage) setErrorMessage(null);
+                  <TouchableOpacity
+                    style={[
+                      styles.datePickerTrigger,
+                      dateStr.trim().length > 0 && styles.datePickerTriggerActive,
+                    ]}
+                    onPress={() => {
+                      setIsHoldingDropdownOpen(false);
+                      setIsDatePickerOpen(true);
                     }}
-                    onFocus={() => setIsHoldingDropdownOpen(false)}
-                    placeholder={t('transaction.txDatePlaceholder', language)}
-                    placeholderTextColor="#64748B"
-                  />
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.datePickerTriggerLeft}>
+                      <CalendarIcon
+                        size={18}
+                        color={dateStr.trim().length > 0 ? '#38BDF8' : '#64748B'}
+                      />
+                      <Text
+                        style={[
+                          styles.datePickerTriggerText,
+                          !dateStr.trim() && styles.datePickerTriggerPlaceholder,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {dateStr.trim() || t('transaction.txDatePlaceholder', language)}
+                      </Text>
+                    </View>
+                    {dateStr.trim().length > 0 ? (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleClearDate();
+                        }}
+                        style={styles.dateTriggerClearBtn}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <View style={styles.clearIconCircle}>
+                          <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                        </View>
+                      </TouchableOpacity>
+                    ) : (
+                      <ChevronRightIcon size={16} color="#64748B" />
+                    )}
+                  </TouchableOpacity>
                 </View>
 
                 {/* 交易总金额汇总卡片 */}
@@ -1272,6 +1376,22 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         message={alertConfig.message}
         buttons={alertConfig.buttons}
         onClose={closeAlert}
+      />
+
+      {/* 现代暗黑质感日期时间选择器 */}
+      <DateTimePickerModal
+        visible={isDatePickerOpen}
+        initialValue={dateStr}
+        language={language}
+        onConfirm={(val) => {
+          setDateStr(val);
+          if (errorMessage) setErrorMessage(null);
+        }}
+        onClear={() => {
+          setDateStr('');
+          if (errorMessage) setErrorMessage(null);
+        }}
+        onClose={() => setIsDatePickerOpen(false)}
       />
     </Modal>
   );
@@ -1407,13 +1527,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  singlePlatformBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(18, 26, 43, 0.7)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 4,
+  },
+  singlePlatformLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  singlePlatformText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  singlePlatformBalanceVal: {
+    color: '#38BDF8',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   platformIconRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 10,
   },
   platformIconCard: {
     flex: 1,
+    minWidth: '22%',
     height: 52,
     borderRadius: 14,
     backgroundColor: '#1E293B',
@@ -1422,9 +1570,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  platformIconCardWithName: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  platformCardNameText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  platformCardNameTextSelected: {
+    color: '#38BDF8',
+    fontWeight: '700',
+  },
   platformCardSelected: {
     borderColor: '#38BDF8',
     backgroundColor: 'rgba(56, 189, 248, 0.16)',
+  },
+  inputWithClearWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  inputBoxWithClear: {
+    backgroundColor: 'rgba(18, 26, 43, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    paddingLeft: 14,
+    paddingRight: 42,
+    paddingVertical: 12,
+  },
+  clearInputBtn: {
+    position: 'absolute',
+    right: 12,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clearIconCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   inputBox: {
     backgroundColor: 'rgba(18, 26, 43, 0.9)',
@@ -1468,6 +1661,41 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 12,
     fontWeight: '500',
+  },
+  datePickerTrigger: {
+    backgroundColor: 'rgba(18, 26, 43, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  datePickerTriggerActive: {
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    backgroundColor: 'rgba(18, 26, 43, 0.95)',
+  },
+  datePickerTriggerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 8,
+  },
+  datePickerTriggerText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  datePickerTriggerPlaceholder: {
+    color: '#64748B',
+    fontSize: 14,
+    fontWeight: '400',
+  },
+  dateTriggerClearBtn: {
+    padding: 2,
   },
   fallbackNoticeText: {
     color: '#F59E0B',

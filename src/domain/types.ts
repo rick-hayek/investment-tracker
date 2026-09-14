@@ -158,6 +158,11 @@ export interface CloudUserInfo {
 export type ThemeMode = 'system' | 'dark' | 'light';
 
 /**
+ * 支持的 4 个交易所平台（按英文字母升序排列：Binance, Coinbase, CoinGecko, OKX）
+ */
+export const ALL_PLATFORMS_ALPHABETICAL: PlatformType[] = ['Binance', 'Coinbase', 'CoinGecko', 'OKX'];
+
+/**
  * 用户配置模型
  */
 export interface UserSettings {
@@ -168,5 +173,6 @@ export interface UserSettings {
   theme: ThemeMode;
   language: LanguageType;
   cloudUser?: CloudUserInfo | null; // 登录 Google Drive 云端同步后保存的用户信息
+  enabledPlatforms?: PlatformType[]; // 用户在记账与入金弹窗中启用的交易所列表
 }
 

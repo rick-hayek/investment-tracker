@@ -106,5 +106,43 @@ describe('MemorySqliteAdapter (内存数据库适配器测试)', () => {
     expect(binanceTxs[0].id).toBe('tx_binance_1');
     expect(binanceTxs[0].platform).toBe('Binance');
   });
+
+  it('在提供 localStorage 环境时自动持久化并在新实例中恢复数据', async () => {
+    const store = new Map<string, string>();
+    const mockLocalStorage = {
+      getItem: (key: string) => store.get(key) || null,
+      setItem: (key: string, val: string) => store.set(key, val),
+      removeItem: (key: string) => store.delete(key),
+      clear: () => store.clear(),
+    };
+
+    const originalWindow = (global as any).window;
+    (global as any).window = { localStorage: mockLocalStorage };
+
+    try {
+      const adapter1 = new MemorySqliteAdapter('test_storage_key');
+      const repo1 = new AssetRepository(adapter1);
+      await repo1.insert({
+        id: 'eth_binance',
+        symbol: 'ETH',
+        name: 'Ethereum',
+        platform: 'Binance',
+        createdAt: 12345,
+      });
+
+      // 验证已写入 mockLocalStorage
+      expect(store.has('test_storage_key')).toBe(true);
+
+      // 创建第二个实例，验证自动加载恢复
+      const adapter2 = new MemorySqliteAdapter('test_storage_key');
+      const repo2 = new AssetRepository(adapter2);
+      const restored = await repo2.findById('eth_binance');
+      expect(restored).not.toBeNull();
+      expect(restored?.symbol).toBe('ETH');
+      expect(restored?.name).toBe('Ethereum');
+    } finally {
+      (global as any).window = originalWindow;
+    }
+  });
 });
 

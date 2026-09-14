@@ -58,6 +58,10 @@ export interface TranslationDictionary {
     themeLight: string;
     themeSelectTitle: string;
     language: string;
+    platformManagement: string;
+    platformManagementSubtitle: string;
+    atLeastOnePlatformWarning: string;
+    platformShowInForms: string;
     exchangesAndData: string;
     dataManagement: string;
     connectedExchanges: string;

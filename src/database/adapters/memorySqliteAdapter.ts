@@ -9,12 +9,75 @@ export class MemorySqliteAdapter implements IDatabaseConnection {
   private depositsTable = new Map<string, any>();
   private priceCacheTable = new Map<string, any>();
   private settingsTable = new Map<string, any>();
+  private storageKey?: string;
+
+  private getStorage(): any {
+    const scope = typeof globalThis !== 'undefined' ? (globalThis as any) : undefined;
+    if (!scope) return null;
+    return scope.localStorage || (scope.window && scope.window.localStorage) || null;
+  }
+
+  constructor(storageKey?: string) {
+    if (storageKey) {
+      this.storageKey = storageKey;
+    } else if (this.getStorage()) {
+      this.storageKey = 'investment_tracker_memory_db';
+    }
+    if (this.storageKey) {
+      this.loadFromStorage();
+    }
+  }
+
+  private loadFromStorage(): void {
+    try {
+      const storage = this.getStorage();
+      if (!storage || !this.storageKey) return;
+      const raw = storage.getItem(this.storageKey);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.assets)) this.assetsTable = new Map(data.assets);
+      if (Array.isArray(data.transactions)) this.transactionsTable = new Map(data.transactions);
+      if (Array.isArray(data.deposits)) this.depositsTable = new Map(data.deposits);
+      if (Array.isArray(data.priceCache)) this.priceCacheTable = new Map(data.priceCache);
+      if (Array.isArray(data.settings)) this.settingsTable = new Map(data.settings);
+    } catch (e) {
+      console.warn('Failed to load MemorySqliteAdapter data from storage:', e);
+    }
+  }
+
+  private saveToStorage(): void {
+    try {
+      const storage = this.getStorage();
+      if (!storage || !this.storageKey) return;
+      const data = {
+        assets: Array.from(this.assetsTable.entries()),
+        transactions: Array.from(this.transactionsTable.entries()),
+        deposits: Array.from(this.depositsTable.entries()),
+        priceCache: Array.from(this.priceCacheTable.entries()),
+        settings: Array.from(this.settingsTable.entries()),
+      };
+      storage.setItem(this.storageKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Failed to save MemorySqliteAdapter data to storage:', e);
+    }
+  }
 
   public exec(sql: string): void {
     // 忽略 DDL 语句
   }
 
   public run(
+    sql: string,
+    params: any[] = []
+  ): { changes: number; lastInsertRowId?: number } {
+    const result = this.executeRun(sql, params);
+    if (result.changes > 0 && this.storageKey) {
+      this.saveToStorage();
+    }
+    return result;
+  }
+
+  private executeRun(
     sql: string,
     params: any[] = []
   ): { changes: number; lastInsertRowId?: number } {
