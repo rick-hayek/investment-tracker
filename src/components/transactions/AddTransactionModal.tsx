@@ -18,9 +18,11 @@ import { TransactionRepository } from '../../database/repositories/transactionRe
 import { DepositRepository } from '../../database/repositories/depositRepository';
 import { ExchangeService, defaultExchangeService } from '../../services/exchangeService';
 import { extractBaseSymbol, resolveCoinGeckoId, KNOWN_ASSETS } from '../../services/symbolMapper';
+import { defaultTokenIconService } from '../../services/tokenIconService';
 import { LanguageType, t } from '../../i18n';
 import { CustomAlertModal, AlertType, AlertButton } from '../common/CustomAlertModal';
 import { DateTimePickerModal } from '../common/DateTimePickerModal';
+import { CryptoLogo } from '../common/CryptoLogo';
 
 import {
   CloseCrossIcon,
@@ -543,21 +545,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
   // 代币 Logo 渲染
   const renderLogo = (sym: string, size = 32) => {
-    const base = extractBaseSymbol(sym).toUpperCase();
-    if (base === 'BTC') return <BtcLogo size={size} />;
-    if (base === 'ETH') return <EthLogo size={size} />;
-    if (base === 'SOL') return <SolLogo size={size} />;
-    const meta = KNOWN_ASSETS[base];
-    return (
-      <View
-        style={[
-          styles.coinIconFallback,
-          { width: size, height: size, borderRadius: size / 2, backgroundColor: meta?.color || '#6366F1' },
-        ]}
-      >
-        <Text style={styles.coinIconFallbackText}>{base.slice(0, 2)}</Text>
-      </View>
-    );
+    return <CryptoLogo symbol={sym} size={size} />;
   };
 
   // 提交交易
@@ -684,11 +672,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         let existing = await assetRepo.findById(assetId);
         if (!existing) {
           const meta = KNOWN_ASSETS[baseSymbol];
+          const iconUrl = await defaultTokenIconService.resolveIconUrl(baseSymbol).catch(() => null);
           await assetRepo.insert({
             id: assetId,
             symbol: baseSymbol,
             name: meta ? meta.name : baseSymbol,
             platform,
+            iconUrl: iconUrl || undefined,
             createdAt: Date.now(),
           });
         }

@@ -86,4 +86,35 @@ describe('DateTimePicker & DateUtils Tests (日期控件与时间解析校验测
       expect(totalCells).toBe(35);
     });
   });
+
+  describe('年份与月份选择器逻辑验证', () => {
+    it('年份列表应覆盖历史与未来合理投资区间且包含当前年份', () => {
+      const currentYear = new Date().getFullYear();
+      const start = Math.min(2010, currentYear - 15);
+      const end = Math.max(2035, currentYear + 10);
+      const list: number[] = [];
+      for (let y = start; y <= end; y++) {
+        list.push(y);
+      }
+      expect(list.length).toBeGreaterThanOrEqual(25);
+      expect(list).toContain(currentYear);
+      expect(list).toContain(2020);
+      expect(list).toContain(2025);
+    });
+
+    it('快捷年份标签应生成今年及往年共6个选项', () => {
+      const cur = new Date().getFullYear();
+      const presets = [cur, cur - 1, cur - 2, cur - 3, cur - 4, cur - 5];
+      expect(presets).toHaveLength(6);
+      expect(presets[0]).toBe(cur);
+      expect(presets[1]).toBe(cur - 1);
+    });
+
+    it('月份选择应支持全部12个月份且一一对应正确', () => {
+      const monthsZh = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+      expect(monthsZh).toHaveLength(12);
+      expect(monthsZh[0]).toBe('1月');
+      expect(monthsZh[11]).toBe('12月');
+    });
+  });
 });

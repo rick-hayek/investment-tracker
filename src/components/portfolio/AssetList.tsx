@@ -12,7 +12,7 @@ import { formatCurrencyValue } from '../../domain/currency';
 import { KNOWN_ASSETS } from '../../services/symbolMapper';
 import { LanguageType, t } from '../../i18n';
 
-import { BtcLogo, EthLogo, SolLogo } from '../common/Icons';
+import { CryptoLogo } from '../common/CryptoLogo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../theme';
 
@@ -43,26 +43,6 @@ export const AssetList: React.FC<AssetListProps> = ({
 }) => {
   const { colors, isDark } = useTheme();
 
-  const renderLogo = (symbol: string) => {
-    switch (symbol.toUpperCase()) {
-      case 'BTC':
-        return <BtcLogo size={32} />;
-      case 'ETH':
-        return <EthLogo size={32} />;
-      case 'SOL':
-        return <SolLogo size={32} />;
-      default: {
-        const meta = KNOWN_ASSETS[symbol];
-        const iconBg = meta ? meta.color : '#3B82F6';
-        return (
-          <View style={[styles.coinIcon, { backgroundColor: iconBg }]}>
-            <Text style={styles.coinIconText}>{symbol.slice(0, 1)}</Text>
-          </View>
-        );
-      }
-    }
-  };
-
   const renderItem = ({ item }: { item: AssetHolding }) => {
     const isHoldingPositive = item.unrealizedPnL >= 0;
 
@@ -79,7 +59,7 @@ export const AssetList: React.FC<AssetListProps> = ({
           style={[styles.assetCard, { borderColor: colors.cardBorder }]}
         >
           <View style={styles.assetLeft}>
-            {renderLogo(item.symbol)}
+            <CryptoLogo symbol={item.symbol} iconUrl={item.iconUrl} size={32} />
             <View style={styles.nameContainer}>
               <View style={styles.assetTitleRow}>
                 <Text style={[styles.assetName, { color: colors.textPrimary }]}>{item.name}</Text>

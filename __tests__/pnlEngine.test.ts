@@ -397,5 +397,59 @@ describe('PnLEngine (财务与盈亏计算引擎)', () => {
       // 累计回报率应为约 34.95%，绝不能是 0%
       expect(summary.netProfitPercent).toBeCloseTo(34.95, 1);
     });
+
+    it('calculate24hChange 准确计算 24 小时波动金额与组合回报率', () => {
+      // 1. 测试单资产上涨 100%
+      const holdingUp: AssetHolding = {
+        assetId: 'btc_binance',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        platform: 'Binance',
+        totalQuantity: 0.02,
+        averageCost: 50000,
+        totalCostBasis: 1000,
+        currentPrice: 100000,
+        marketValue: 2000, // 今日市值 2000
+        unrealizedPnL: 1000,
+        unrealizedPnLPercent: 100,
+        realizedPnL: 0,
+        change24hPercent: 100, // 24h 上涨 100% (昨日单价 50000，昨日市值 1000)
+      };
+
+      const resUp = PnLEngine.calculate24hChange([holdingUp], 2000);
+      // 变动金额应为 2000 - 1000 = +1000
+      expect(resUp.amountUSD).toBeCloseTo(1000, 2);
+      // 组合 24h 涨跌幅应为 1000 / 1000 * 100 = 100%
+      expect(resUp.percent).toBeCloseTo(100, 2);
+
+      // 2. 测试单资产下跌 50%
+      const holdingDown: AssetHolding = {
+        assetId: 'eth_okx',
+        symbol: 'ETH',
+        name: 'Ethereum',
+        platform: 'OKX',
+        totalQuantity: 0.5,
+        averageCost: 4000,
+        totalCostBasis: 2000,
+        currentPrice: 2000,
+        marketValue: 1000, // 今日市值 1000
+        unrealizedPnL: -1000,
+        unrealizedPnLPercent: -50,
+        realizedPnL: 0,
+        change24hPercent: -50, // 24h 下跌 50% (昨日单价 4000，昨日市值 2000)
+      };
+
+      const resDown = PnLEngine.calculate24hChange([holdingDown], 1000);
+      // 变动金额应为 1000 - 2000 = -1000
+      expect(resDown.amountUSD).toBeCloseTo(-1000, 2);
+      // 组合 24h 涨跌幅应为 -1000 / 2000 * 100 = -50%
+      expect(resDown.percent).toBeCloseTo(-50, 2);
+
+      // 3. 测试混合资产与现金储备组合
+      const resMulti = PnLEngine.calculate24hChange([holdingUp, holdingDown], 10000);
+      // 净变动金额 = 1000 - 1000 = 0
+      expect(resMulti.amountUSD).toBeCloseTo(0, 2);
+      expect(resMulti.percent).toBeCloseTo(0, 2);
+    });
   });
 });

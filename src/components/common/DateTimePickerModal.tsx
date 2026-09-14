@@ -8,7 +8,7 @@ import {
   ScrollView,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { CalendarIcon, ClockIcon, CloseCrossIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
+import { CalendarIcon, ClockIcon, CloseCrossIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from './Icons';
 import { formatCurrentDateTime } from '../../utils/dateUtils';
 
 export interface DateTimePickerModalProps {
@@ -79,6 +79,9 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
   const [viewYear, setViewYear] = useState(parsedInitial.year);
   const [viewMonth, setViewMonth] = useState(parsedInitial.month);
 
+  // 日期子面板模式：'days' (正常日历) | 'years' (年份选择器) | 'months' (月份选择器)
+  const [calendarViewMode, setCalendarViewMode] = useState<'days' | 'years' | 'months'>('days');
+
   // 当前选中的 Tab: 'date' | 'time'
   const [activeTab, setActiveTab] = useState<'date' | 'time'>('date');
 
@@ -93,12 +96,31 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
       setViewYear(parsedInitial.year);
       setViewMonth(parsedInitial.month);
       setActiveTab('date');
+      setCalendarViewMode('days');
     }
   }, [visible, parsedInitial]);
 
   // 今天的时间对象，用于高亮今天
   const today = useMemo(() => new Date(), [visible]);
   const isCurrentMonthToday = today.getFullYear() === viewYear && today.getMonth() === viewMonth;
+
+  // 可选年份列表 (从 2010 到 当前年份+10)
+  const yearList = useMemo(() => {
+    const currentYear = today.getFullYear();
+    const start = Math.min(2010, currentYear - 15);
+    const end = Math.max(2035, currentYear + 10);
+    const list: number[] = [];
+    for (let y = start; y <= end; y++) {
+      list.push(y);
+    }
+    return list;
+  }, [today]);
+
+  // 快捷年份标签 (今年及过去5年)
+  const quickYearPresets = useMemo(() => {
+    const cur = today.getFullYear();
+    return [cur, cur - 1, cur - 2, cur - 3, cur - 4, cur - 5];
+  }, [today]);
 
   // 格式化输出字符串
   const currentFormattedResult = useMemo(() => {
@@ -141,6 +163,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
     setSelectedMinute(min);
     setViewYear(y);
     setViewMonth(m);
+    setCalendarViewMode('days');
   };
 
   // 今天 00:00 快捷操作
@@ -157,6 +180,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
     setSelectedMinute(0);
     setViewYear(y);
     setViewMonth(m);
+    setCalendarViewMode('days');
   };
 
   // 昨天此时快捷操作
@@ -172,6 +196,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
     setSelectedDay(d);
     setViewYear(y);
     setViewMonth(m);
+    setCalendarViewMode('days');
   };
 
   // 生成日历网格天数数据
@@ -364,80 +389,341 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                   <View style={styles.monthNavRow}>
                     <TouchableOpacity
                       style={styles.navArrowBtn}
-                      onPress={handlePrevMonth}
+                      onPress={() => {
+                        if (calendarViewMode === 'years') {
+                          setViewYear((y) => y - 1);
+                        } else if (calendarViewMode === 'months') {
+                          setViewYear((y) => y - 1);
+                        } else {
+                          handlePrevMonth();
+                        }
+                      }}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <ChevronLeftIcon size={18} color="#94A3B8" />
                     </TouchableOpacity>
 
-                    <Text style={styles.monthNavTitle}>
-                      {isZh
-                        ? `${viewYear}年 ${MONTHS_ZH[viewMonth]}`
-                        : `${MONTHS_EN[viewMonth]} ${viewYear}`}
-                    </Text>
+                    <View style={styles.navPillsRow}>
+                      {isZh ? (
+                        <>
+                          <TouchableOpacity
+                            style={[
+                              styles.pickerNavPill,
+                              calendarViewMode === 'years' && styles.pickerNavPillActive,
+                            ]}
+                            onPress={() =>
+                              setCalendarViewMode((mode) => (mode === 'years' ? 'days' : 'years'))
+                            }
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.monthNavTitle,
+                                calendarViewMode === 'years' && styles.monthNavTitleActive,
+                              ]}
+                            >
+                              {`${viewYear}年`}
+                            </Text>
+                            <ChevronDownIcon
+                              size={14}
+                              color={calendarViewMode === 'years' ? '#38BDF8' : '#94A3B8'}
+                            />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.pickerNavPill,
+                              calendarViewMode === 'months' && styles.pickerNavPillActive,
+                            ]}
+                            onPress={() =>
+                              setCalendarViewMode((mode) => (mode === 'months' ? 'days' : 'months'))
+                            }
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.monthNavTitle,
+                                calendarViewMode === 'months' && styles.monthNavTitleActive,
+                              ]}
+                            >
+                              {MONTHS_ZH[viewMonth]}
+                            </Text>
+                            <ChevronDownIcon
+                              size={14}
+                              color={calendarViewMode === 'months' ? '#38BDF8' : '#94A3B8'}
+                            />
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            style={[
+                              styles.pickerNavPill,
+                              calendarViewMode === 'months' && styles.pickerNavPillActive,
+                            ]}
+                            onPress={() =>
+                              setCalendarViewMode((mode) => (mode === 'months' ? 'days' : 'months'))
+                            }
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.monthNavTitle,
+                                calendarViewMode === 'months' && styles.monthNavTitleActive,
+                              ]}
+                            >
+                              {MONTHS_EN[viewMonth]}
+                            </Text>
+                            <ChevronDownIcon
+                              size={14}
+                              color={calendarViewMode === 'months' ? '#38BDF8' : '#94A3B8'}
+                            />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.pickerNavPill,
+                              calendarViewMode === 'years' && styles.pickerNavPillActive,
+                            ]}
+                            onPress={() =>
+                              setCalendarViewMode((mode) => (mode === 'years' ? 'days' : 'years'))
+                            }
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.monthNavTitle,
+                                calendarViewMode === 'years' && styles.monthNavTitleActive,
+                              ]}
+                            >
+                              {`${viewYear}`}
+                            </Text>
+                            <ChevronDownIcon
+                              size={14}
+                              color={calendarViewMode === 'years' ? '#38BDF8' : '#94A3B8'}
+                            />
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
 
                     <TouchableOpacity
                       style={styles.navArrowBtn}
-                      onPress={handleNextMonth}
+                      onPress={() => {
+                        if (calendarViewMode === 'years') {
+                          setViewYear((y) => y + 1);
+                        } else if (calendarViewMode === 'months') {
+                          setViewYear((y) => y + 1);
+                        } else {
+                          handleNextMonth();
+                        }
+                      }}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <ChevronRightIcon size={18} color="#94A3B8" />
                     </TouchableOpacity>
                   </View>
 
-                  {/* 星期行 */}
-                  <View style={styles.weekdayRow}>
-                    {(isZh ? WEEKDAYS_ZH : WEEKDAYS_EN).map((w, idx) => (
-                      <Text
-                        key={idx}
-                        style={[
-                          styles.weekdayText,
-                          (idx === 0 || idx === 6) && styles.weekendText,
-                        ]}
-                      >
-                        {w}
-                      </Text>
-                    ))}
-                  </View>
-
-                  {/* 日期网格 */}
-                  <View style={styles.calendarGrid}>
-                    {calendarDays.map((item, idx) => {
-                      const isSelected =
-                        item.year === selectedYear &&
-                        item.month === selectedMonth &&
-                        item.day === selectedDay;
-                      const isToday =
-                        item.year === today.getFullYear() &&
-                        item.month === today.getMonth() &&
-                        item.day === today.getDate();
-                      const isCurrentMonth = item.monthType === 'current';
-
-                      return (
+                  {calendarViewMode === 'years' ? (
+                    /* 年份选择器面板 */
+                    <View style={styles.selectorViewContainer}>
+                      <View style={styles.selectorSubHeader}>
+                        <Text style={styles.selectorSubTitle}>
+                          {isZh ? '快捷年份' : 'Quick Years'}
+                        </Text>
                         <TouchableOpacity
-                          key={idx}
-                          style={[
-                            styles.dayCell,
-                            isSelected && styles.dayCellSelected,
-                            isToday && !isSelected && styles.dayCellToday,
-                          ]}
-                          onPress={() => handleSelectDate(item)}
+                          style={styles.backToCalendarBtn}
+                          onPress={() => setCalendarViewMode('days')}
                           activeOpacity={0.7}
                         >
-                          <Text
-                            style={[
-                              styles.dayText,
-                              !isCurrentMonth && styles.dayTextMuted,
-                              isSelected && styles.dayTextSelected,
-                              isToday && !isSelected && styles.dayTextToday,
-                            ]}
-                          >
-                            {item.day}
+                          <Text style={styles.backToCalendarText}>
+                            {isZh ? '返回日历' : 'Back to Calendar'}
                           </Text>
                         </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                      </View>
+
+                      {/* 快捷年份胶囊 */}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.quickYearsScroll}
+                        style={styles.quickYearsScrollWrap}
+                      >
+                        {quickYearPresets.map((yr) => {
+                          const isActive = yr === viewYear;
+                          return (
+                            <TouchableOpacity
+                              key={yr}
+                              style={[
+                                styles.quickYearChip,
+                                isActive && styles.quickYearChipActive,
+                              ]}
+                              onPress={() => {
+                                setViewYear(yr);
+                                setCalendarViewMode('days');
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.quickYearChipText,
+                                  isActive && styles.quickYearChipTextActive,
+                                ]}
+                              >
+                                {yr === today.getFullYear()
+                                  ? isZh
+                                    ? `${yr}(今年)`
+                                    : `${yr}(Current)`
+                                  : `${yr}`}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+
+                      {/* 滚动年份网格 */}
+                      <ScrollView
+                        style={styles.yearScrollArea}
+                        contentContainerStyle={styles.yearGridContent}
+                        showsVerticalScrollIndicator={true}
+                      >
+                        {yearList.map((yr) => {
+                          const isCurrentView = yr === viewYear;
+                          const isTodayYear = yr === today.getFullYear();
+                          return (
+                            <TouchableOpacity
+                              key={yr}
+                              style={[
+                                styles.yearGridItem,
+                                isCurrentView && styles.yearGridItemActive,
+                                isTodayYear && !isCurrentView && styles.yearGridItemToday,
+                              ]}
+                              onPress={() => {
+                                setViewYear(yr);
+                                setCalendarViewMode('days');
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.yearGridItemText,
+                                  isCurrentView && styles.yearGridItemTextActive,
+                                  isTodayYear && !isCurrentView && styles.yearGridItemTextToday,
+                                ]}
+                              >
+                                {yr}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  ) : calendarViewMode === 'months' ? (
+                    /* 月份选择器面板 */
+                    <View style={styles.selectorViewContainer}>
+                      <View style={styles.selectorSubHeader}>
+                        <Text style={styles.selectorSubTitle}>
+                          {isZh ? '选择月份' : 'Select Month'}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.backToCalendarBtn}
+                          onPress={() => setCalendarViewMode('days')}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.backToCalendarText}>
+                            {isZh ? '返回日历' : 'Back to Calendar'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* 12个月份网格 (3列 x 4行) */}
+                      <View style={styles.monthGrid}>
+                        {Array.from({ length: 12 }, (_, i) => i).map((m) => {
+                          const isCurrentMonth = m === viewMonth;
+                          return (
+                            <TouchableOpacity
+                              key={m}
+                              style={[
+                                styles.monthGridItem,
+                                isCurrentMonth && styles.monthGridItemActive,
+                              ]}
+                              onPress={() => {
+                                setViewMonth(m);
+                                setCalendarViewMode('days');
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.monthGridItemText,
+                                  isCurrentMonth && styles.monthGridItemTextActive,
+                                ]}
+                              >
+                                {isZh ? MONTHS_ZH[m] : MONTHS_EN[m]}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ) : (
+                    /* 日历天数网格 (默认) */
+                    <>
+                      {/* 星期行 */}
+                      <View style={styles.weekdayRow}>
+                        {(isZh ? WEEKDAYS_ZH : WEEKDAYS_EN).map((w, idx) => (
+                          <Text
+                            key={idx}
+                            style={[
+                              styles.weekdayText,
+                              (idx === 0 || idx === 6) && styles.weekendText,
+                            ]}
+                          >
+                            {w}
+                          </Text>
+                        ))}
+                      </View>
+
+                      {/* 日期网格 */}
+                      <View style={styles.calendarGrid}>
+                        {calendarDays.map((item, idx) => {
+                          const isSelected =
+                            item.year === selectedYear &&
+                            item.month === selectedMonth &&
+                            item.day === selectedDay;
+                          const isToday =
+                            item.year === today.getFullYear() &&
+                            item.month === today.getMonth() &&
+                            item.day === today.getDate();
+                          const isCurrentMonth = item.monthType === 'current';
+
+                          return (
+                            <TouchableOpacity
+                              key={idx}
+                              style={[
+                                styles.dayCell,
+                                isSelected && styles.dayCellSelected,
+                                isToday && !isSelected && styles.dayCellToday,
+                              ]}
+                              onPress={() => handleSelectDate(item)}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.dayText,
+                                  !isCurrentMonth && styles.dayTextMuted,
+                                  isSelected && styles.dayTextSelected,
+                                  isToday && !isSelected && styles.dayTextToday,
+                                ]}
+                              >
+                                {item.day}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
                 </View>
               ) : (
                 /* 时间选择面板 */
@@ -655,6 +941,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 4,
   },
+  navPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pickerNavPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  pickerNavPillActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderColor: 'rgba(56, 189, 248, 0.5)',
+  },
   navArrowBtn: {
     padding: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -664,6 +970,147 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     fontSize: 15,
     fontWeight: '700',
+  },
+  monthNavTitleActive: {
+    color: '#38BDF8',
+  },
+  selectorViewContainer: {
+    minHeight: 240,
+    justifyContent: 'flex-start',
+  },
+  selectorSubHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  selectorSubTitle: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  backToCalendarBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  backToCalendarText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  quickYearsScrollWrap: {
+    maxHeight: 34,
+    marginBottom: 10,
+  },
+  quickYearsScroll: {
+    gap: 6,
+    paddingHorizontal: 2,
+  },
+  quickYearChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  quickYearChipActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    borderColor: '#38BDF8',
+  },
+  quickYearChipText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  quickYearChipTextActive: {
+    color: '#38BDF8',
+    fontWeight: '700',
+  },
+  yearScrollArea: {
+    height: 180,
+  },
+  yearGridContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+  },
+  yearGridItem: {
+    width: '22%',
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearGridItemActive: {
+    backgroundColor: '#38BDF8',
+    borderColor: '#38BDF8',
+    shadowColor: '#38BDF8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  yearGridItemToday: {
+    borderColor: '#38BDF8',
+    borderWidth: 1.5,
+  },
+  yearGridItemText: {
+    color: '#F1F5F9',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  yearGridItemTextActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  yearGridItemTextToday: {
+    color: '#38BDF8',
+    fontWeight: '700',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+    paddingTop: 6,
+  },
+  monthGridItem: {
+    width: '31%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 2,
+  },
+  monthGridItemActive: {
+    backgroundColor: '#38BDF8',
+    borderColor: '#38BDF8',
+    shadowColor: '#38BDF8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  monthGridItemText: {
+    color: '#F1F5F9',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  monthGridItemTextActive: {
+    color: '#0F172A',
+    fontWeight: '800',
   },
   weekdayRow: {
     flexDirection: 'row',

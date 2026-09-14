@@ -120,6 +120,7 @@ export interface AssetHolding {
   unrealizedPnLPercent: number; // 未实现盈亏百分比
   realizedPnL: number; // 历史已实现累计结转盈亏金额
   change24hPercent: number; // 24小时涨跌幅
+  iconUrl?: string; // 代币 Logo 图标 URL 或本地路径
 }
 
 /**
@@ -144,6 +145,10 @@ export interface PortfolioSummary {
   totalPortfolioValueUSD?: number; // 全平台总财产 (代币市值 + 稳定币本金)
   totalNetProfitUSD?: number; // 累计全周期投资净盈亏 (总财产 - 净充值本金)
   totalNetProfitPercent?: number; // 累计全周期投资净回报率 %
+
+  // 24小时行情波动指标
+  total24hChangeUSD?: number; // 24小时波动金额总额 (USD)
+  total24hChangePercent?: number; // 24小时波动率 %
 }
 
 import { LanguageType } from '../i18n/types';

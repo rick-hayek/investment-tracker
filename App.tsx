@@ -29,6 +29,7 @@ import { SettingsScreen } from './src/components/settings';
 import { PrivacyShield } from './src/components/common/PrivacyShield';
 import { defaultExchangeService } from './src/services/exchangeService';
 import { defaultForexService } from './src/services/forexService';
+import { defaultTokenIconService } from './src/services/tokenIconService';
 import { useMarketPoll } from './src/services/useMarketPoll';
 import { MenuIcon, BellIcon } from './src/components/common/Icons';
 import { LanguageType, t } from './src/i18n';
@@ -202,6 +203,19 @@ export default function App() {
     initSeedData();
   }, [isDbReady, initSeedData]);
 
+  // 异步静默排查并补全无图标资产 (如 ACT, TRUMP, SUSHI 等)，持久化至本地 SQLite
+  useEffect(() => {
+    if (!isDbReady || assets.length === 0) return;
+    const missing = assets.filter((a) => !a.iconUrl);
+    if (missing.length === 0) return;
+
+    defaultTokenIconService
+      .syncMissingAssetIcons(missing, assetRepo, (updated) => {
+        setAssets((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      })
+      .catch(() => {});
+  }, [isDbReady, assets, assetRepo]);
+
   // 刷新所有资产的实时市场价格
   const refreshPrices = useCallback(async () => {
     if (assets.length === 0) return;
@@ -265,6 +279,19 @@ export default function App() {
         console.warn(`[App] Error calculating holding for ${asset.symbol}:`, err);
       }
     }
+
+    // 智能排序：有效持仓在前 (按市值降序)，持仓为 0 (已清仓) 的代币自动放到列表最后
+    list.sort((a, b) => {
+      const aHasQty = a.totalQuantity > 0;
+      const bHasQty = b.totalQuantity > 0;
+      if (aHasQty !== bHasQty) {
+        return aHasQty ? -1 : 1;
+      }
+      if (aHasQty) {
+        return b.marketValue - a.marketValue;
+      }
+      return (b.totalBoughtCost || 0) - (a.totalBoughtCost || 0);
+    });
 
     const portfolio = PnLEngine.calculatePortfolioSummary(list, deposits, transactions);
     return { summary: portfolio, holdings: list };
@@ -681,7 +708,7 @@ function AppContent({
               onTogglePrivacy={() => handleUpdateSettings({ privacyMode: !userSettings.privacyMode })}
             />
 
-            {/* Section Title with Crypto Holdings Total */}
+            {/* Section Title with Crypto Holdings Total & Cumulative Token ROI */}
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
@@ -692,6 +719,20 @@ function AppContent({
                     privacyMode: userSettings.privacyMode,
                   })}
                 </Text>
+                {holdings.length > 0 && summary.netProfitPercent !== undefined && (
+                  <Text
+                    style={[
+                      styles.sectionPnlPercent,
+                      {
+                        color: summary.netProfitPercent >= 0 ? colors.gain : colors.loss,
+                      },
+                    ]}
+                  >
+                    {userSettings.privacyMode
+                      ? '(••%)'
+                      : `(${summary.netProfitPercent >= 0 ? '+' : ''}${summary.netProfitPercent.toFixed(2)}%)`}
+                  </Text>
+                )}
               </View>
               <TouchableOpacity onPress={() => openAddModal('BUY')} activeOpacity={0.7}>
                 <Text style={[styles.addLink, { color: colors.accent }]}>
@@ -898,6 +939,10 @@ const styles = StyleSheet.create({
   },
   sectionAmount: {
     fontSize: 15,
+    fontWeight: '600',
+  },
+  sectionPnlPercent: {
+    fontSize: 13,
     fontWeight: '600',
   },
   addLink: {

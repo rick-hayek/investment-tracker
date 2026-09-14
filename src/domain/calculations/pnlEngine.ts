@@ -397,6 +397,7 @@ export class PnLEngine {
       unrealizedPnLPercent: unrealizedPnLPercent,
       realizedPnL: totalRealizedPnL.toNumber(),
       change24hPercent: change24hPercent,
+      iconUrl: asset.iconUrl,
     };
   }
 
@@ -486,6 +487,12 @@ export class PnLEngine {
       ? totalPortfolioValueBn.toNumber()
       : totalCryptoMarketValue.toNumber();
 
+    // 24小时行情波动指标 (金额变动与涨跌率)
+    const daily24h = this.calculate24hChange(
+      holdings,
+      effectiveTotalMarketValue
+    );
+
     return {
       totalMarketValue: effectiveTotalMarketValue,
       totalCostBasis: totalCostBasis.toNumber(),
@@ -503,6 +510,59 @@ export class PnLEngine {
       totalPortfolioValueUSD: totalPortfolioValueBn.toNumber(),
       totalNetProfitUSD: totalNetProfitBn.toNumber(),
       totalNetProfitPercent: totalNetProfitPercent,
+      total24hChangeUSD: daily24h.amountUSD,
+      total24hChangePercent: daily24h.percent,
+    };
+  }
+
+  /**
+   * 计算当前持仓在过去 24 小时的行情波动总金额 (USD) 与波动率 %
+   * 
+   * 严谨数学推导：
+   * 各代币 24h 涨跌幅 r = change24hPercent / 100
+   * 24h 前单价 P0 = P1 / (1 + r)
+   * 24h 前市值 V0 = V1 / (1 + r)
+   * 24h 波动金额 DeltaV = V1 - V0
+   * 
+   * 投资组合 24h 涨跌幅基准为 24h 前总资产：
+   * BaseTotal24hAgo = CurrentTotal - TotalDeltaV
+   * Portfolio 24h Percent = (TotalDeltaV / BaseTotal24hAgo) * 100%
+   */
+  public static calculate24hChange(
+    holdings: AssetHolding[],
+    totalPortfolioValueUSD: number
+  ): { amountUSD: number; percent: number } {
+    let total24hChangeUSD = new BigNumber(0);
+
+    for (const h of holdings) {
+      if (h.marketValue > 0 && typeof h.change24hPercent === 'number' && !isNaN(h.change24hPercent)) {
+        const r = h.change24hPercent / 100;
+        const mv = new BigNumber(h.marketValue);
+        if (r > -1) {
+          const baseValue24hAgo = mv.dividedBy(1 + r);
+          const changeUSD = mv.minus(baseValue24hAgo);
+          total24hChangeUSD = total24hChangeUSD.plus(changeUSD);
+        } else {
+          // 极端归零跌幅 (r <= -100%)
+          total24hChangeUSD = total24hChangeUSD.minus(mv);
+        }
+      }
+    }
+
+    const currentTotal = totalPortfolioValueUSD > 0 ? new BigNumber(totalPortfolioValueUSD) : new BigNumber(0);
+    const baseTotal24hAgo = currentTotal.minus(total24hChangeUSD);
+
+    let percent = 0;
+    if (baseTotal24hAgo.isGreaterThan(0)) {
+      percent = total24hChangeUSD
+        .dividedBy(baseTotal24hAgo)
+        .multipliedBy(100)
+        .toNumber();
+    }
+
+    return {
+      amountUSD: total24hChangeUSD.toNumber(),
+      percent,
     };
   }
 

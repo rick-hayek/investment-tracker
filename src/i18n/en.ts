@@ -58,7 +58,7 @@ export const en: TranslationDictionary = {
     themeLight: 'Light',
     themeSelectTitle: 'Select Theme',
     language: 'Language',
-    platformManagement: 'Exchanges & Platforms',
+    platformManagement: 'Exchanges',
     platformManagementSubtitle: 'Configure exchanges shown in transaction and deposit lists',
     platformPageNotice: 'Configure exchanges displayed in transaction and deposit forms. At least 1 exchange must remain active. Hiding an exchange will not affect existing assets or history.',
     atLeastOnePlatformWarning: 'At least one exchange platform must remain enabled',

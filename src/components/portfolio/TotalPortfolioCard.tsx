@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { PortfolioSummary, CurrencyType, AssetHolding } from '../../domain/types';
+import { PnLEngine } from '../../domain/calculations/pnlEngine';
 import { formatCurrencyValue, getCurrencySymbol } from '../../domain/currency';
 import { LanguageType, t } from '../../i18n';
 import { Sparkline } from '../charts/Sparkline';
@@ -49,34 +50,58 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
 
   // 计算当日 24h 盈亏估算
   const daily24hMetrics = useMemo(() => {
-    let total24hChangeAmountUSD = 0;
-    for (const h of holdings) {
-      if (h.marketValue > 0 && h.change24hPercent) {
-        total24hChangeAmountUSD += h.marketValue * (h.change24hPercent / 100);
-      }
+    if (
+      summary.total24hChangeUSD !== undefined &&
+      summary.total24hChangePercent !== undefined
+    ) {
+      return {
+        amountUSD: summary.total24hChangeUSD,
+        percent: summary.total24hChangePercent,
+      };
     }
-    const percent =
-      summary.totalMarketValue > 0
-        ? (total24hChangeAmountUSD / summary.totalMarketValue) * 100
-        : 0;
+    const currentTotal =
+      summary.totalPortfolioValueUSD !== undefined
+        ? summary.totalPortfolioValueUSD
+        : summary.totalMarketValue;
 
-    return {
-      amountUSD: total24hChangeAmountUSD,
-      percent,
-    };
-  }, [holdings, summary.totalMarketValue]);
+    return PnLEngine.calculate24hChange(holdings, currentTotal);
+  }, [
+    holdings,
+    summary.total24hChangeUSD,
+    summary.total24hChangePercent,
+    summary.totalPortfolioValueUSD,
+    summary.totalMarketValue,
+  ]);
 
   const isCumulative = pnlMode === 'CUMULATIVE';
+  const hasNetDeposits = (summary.totalNetDepositsUSD ?? 0) > 0;
   const displayAmountUSD = isCumulative
-    ? summary.netProfit
+    ? (hasNetDeposits && summary.totalNetProfitUSD !== undefined
+        ? summary.totalNetProfitUSD
+        : summary.netProfit)
     : daily24hMetrics.amountUSD;
   const displayPercent = isCumulative
-    ? (summary.netProfitPercent !== undefined && summary.netProfitPercent !== 0
-        ? summary.netProfitPercent
-        : (summary.totalNetProfitPercent || 0))
+    ? (hasNetDeposits && summary.totalNetProfitPercent !== undefined
+        ? summary.totalNetProfitPercent
+        : (summary.netProfitPercent !== undefined && summary.netProfitPercent !== 0
+            ? summary.netProfitPercent
+            : (summary.totalNetProfitPercent || 0)))
     : daily24hMetrics.percent;
 
   const isPositive = displayAmountUSD >= 0;
+  const sign = displayAmountUSD > 0 ? '+' : displayAmountUSD < 0 ? '-' : '';
+
+  const formattedPercent = useMemo(() => {
+    const absAmount = Math.abs(displayAmountUSD);
+    const absPct = Math.abs(displayPercent);
+    if (absAmount === 0 || absPct === 0) {
+      return '0.00%';
+    }
+    if (absPct > 0 && absPct < 0.005 && absAmount >= 0.01) {
+      return `${sign}0.01%`;
+    }
+    return `${sign}${absPct.toFixed(2)}%`;
+  }, [displayAmountUSD, displayPercent, sign]);
 
   // 生成 Sparkline 走势点阵
   const sparklineData = useMemo(() => {
@@ -192,10 +217,8 @@ export const TotalPortfolioCard: React.FC<TotalPortfolioCardProps> = ({
               '•••••• (••%)'
             ) : (
               <>
-                {isPositive ? '+' : '-'}
-                {formatCurrencyValue(Math.abs(displayAmountUSD), currency)} (
-                {isPositive ? '+' : ''}
-                {displayPercent.toFixed(1)}%)
+                {sign}
+                {formatCurrencyValue(Math.abs(displayAmountUSD), currency)} ({formattedPercent})
               </>
             )}
           </Text>
