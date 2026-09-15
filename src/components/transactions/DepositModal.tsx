@@ -419,7 +419,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                     <LockIcon size={14} color={colors.accent} />
                   </View>
                   <Text style={styles.isolationNoticeText}>
-                    {t('deposit.platformIsolationNotice', language).replace('{platform}', platform)}
+                    {t('deposit.platformIsolationNotice', language, { platform })}
                   </Text>
                 </View>
 

@@ -64,7 +64,7 @@ export default function App() {
   // 交易所本金充提独立弹窗状态
   const [depositModalVisible, setDepositModalVisible] = useState(false);
   const [depositModalType, setDepositModalType] = useState<CapitalOperationType>('DEPOSIT');
-  const [depositModalPlatform, setDepositModalPlatform] = useState<PlatformType>('OKX');
+  const [depositModalPlatform, setDepositModalPlatform] = useState<PlatformType>('Binance');
   const [depositModalCurrency, setDepositModalCurrency] = useState<DepositCurrency>('USDT');
 
   // 资产配比统计弹窗
@@ -367,7 +367,7 @@ export default function App() {
 
   const openDepositModal = (
     type: CapitalOperationType = 'DEPOSIT',
-    platform: PlatformType = 'OKX',
+    platform: PlatformType = 'Binance',
     currency: DepositCurrency = 'USDT'
   ) => {
     setDepositModalType(type);
@@ -820,7 +820,7 @@ function AppContent({
             privacyMode={userSettings.privacyMode}
             language={currentLanguage}
             onPressDeposit={(plat, cur) =>
-              openDepositModal('DEPOSIT', plat || 'OKX', cur || 'USDT')
+              openDepositModal('DEPOSIT', plat || 'Binance', cur || 'USDT')
             }
             onPressItem={(item) => {
               setSelectedCapitalItem(item);
