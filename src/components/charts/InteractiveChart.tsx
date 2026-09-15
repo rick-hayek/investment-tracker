@@ -55,12 +55,20 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   // 拉取分时数据
   const loadChartData = useCallback(async () => {
     try {
-      const adapter = exchangeService.getAdapter(platform);
-      if (adapter.fetchHistoricalChart) {
-        const rawPoints = await adapter.fetchHistoricalChart(symbol, selectedTimeframe);
+      if (exchangeService.fetchHistoricalChart) {
+        const rawPoints = await exchangeService.fetchHistoricalChart(platform, symbol, selectedTimeframe);
         if (rawPoints && rawPoints.length >= 2) {
           setChartData(rawPoints);
           return;
+        }
+      } else {
+        const adapter = exchangeService.getAdapter(platform);
+        if (adapter.fetchHistoricalChart) {
+          const rawPoints = await adapter.fetchHistoricalChart(symbol, selectedTimeframe);
+          if (rawPoints && rawPoints.length >= 2) {
+            setChartData(rawPoints);
+            return;
+          }
         }
       }
       // 兜底仿真数据

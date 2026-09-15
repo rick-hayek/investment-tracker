@@ -7,6 +7,7 @@ import {
   OKXAdapter,
   CoinbaseAdapter,
   CoinGeckoAdapter,
+  GateIOAdapter,
 } from './adapters';
 import { resolveCoinGeckoId } from './symbolMapper';
 
@@ -16,7 +17,7 @@ interface CacheItem {
 }
 
 export class ExchangeService {
-  private adapters: Map<PlatformType, IExchangeAdapter> = new Map();
+  private adapters: Map<string, IExchangeAdapter> = new Map();
   private cache: Map<string, CacheItem> = new Map();
   private cacheTtlMs: number;
 
@@ -26,13 +27,14 @@ export class ExchangeService {
     this.registerAdapter(new OKXAdapter());
     this.registerAdapter(new CoinbaseAdapter());
     this.registerAdapter(new CoinGeckoAdapter());
+    this.registerAdapter(new GateIOAdapter());
   }
 
   registerAdapter(adapter: IExchangeAdapter): void {
     this.adapters.set(adapter.platformName, adapter);
   }
 
-  getAdapter(platform: PlatformType): IExchangeAdapter {
+  getAdapter(platform: PlatformType | string): IExchangeAdapter {
     const adapter = this.adapters.get(platform);
     if (!adapter) {
       throw new Error(`No exchange adapter registered for platform: ${platform}`);
@@ -69,7 +71,8 @@ export class ExchangeService {
   }
 
   /**
-   * 拉取指定平台的行情价格，若失败/限流自动降级至 CoinGecko 兜底
+   * 拉取指定平台的行情价格，若失败/被网络拦截自动依次降级至多级高可用备用源
+   * 降级顺序：主平台 -> Binance (含 data-api.binance.vision 免翻墙直连) -> Gate.io (国内高可用直连) -> CoinGecko
    */
   async fetchTicker(
     platform: PlatformType,
@@ -88,12 +91,43 @@ export class ExchangeService {
     }
 
     try {
-      // 1. 优先调用选定的平台
+      // 1. 优先调用选定的主平台 (如 OKX / Binance / Coinbase)
       const ticker = await adapter.fetchTicker(formattedSymbol);
       this.setCache(platform, formattedSymbol, ticker);
       return ticker;
     } catch (primaryError) {
-      // 2. 失败容灾：若主选平台不是 CoinGecko，降级使用 CoinGecko 兜底
+      // 2. 失败多级容灾与国内网络备用源调度
+      // 备选 1: 币安 (包含官方全球直连免翻墙公共行情接口 data-api.binance.vision)
+      if (platform !== 'Binance') {
+        try {
+          const binanceAdapter = this.getAdapter('Binance');
+          const fbTicker = await binanceAdapter.fetchTicker(symbol);
+          const result: TickerData = {
+            ...fbTicker,
+            symbol: formattedSymbol,
+            isFallback: true,
+          };
+          this.setCache(platform, formattedSymbol, result);
+          return result;
+        } catch {}
+      }
+
+      // 备选 2: Gate.io (国内访问高可用，全币种覆盖，无须鉴权)
+      try {
+        const gateAdapter = this.getAdapter('GateIO');
+        if (gateAdapter) {
+          const fbTicker = await gateAdapter.fetchTicker(symbol);
+          const result: TickerData = {
+            ...fbTicker,
+            symbol: formattedSymbol,
+            isFallback: true,
+          };
+          this.setCache(platform, formattedSymbol, result);
+          return result;
+        }
+      } catch {}
+
+      // 备选 3: CoinGecko
       if (platform !== 'CoinGecko') {
         try {
           const coinGeckoAdapter = this.getAdapter('CoinGecko');
@@ -107,14 +141,65 @@ export class ExchangeService {
           };
           this.setCache(platform, formattedSymbol, result);
           return result;
-        } catch (fallbackError) {
-          // 兜底也失败，抛出原异常
-          throw primaryError;
-        }
+        } catch {}
       }
 
+      // 所有网络备用源均失败，抛出原异常
       throw primaryError;
     }
+  }
+
+  /**
+   * 聚合分时历史 K 线数据，支持主平台与国内备用平台自动容灾
+   */
+  async fetchHistoricalChart(
+    platform: PlatformType,
+    symbol: string,
+    timeframe: '24H' | '1W' | '1M' | '1Y' | 'ALL'
+  ): Promise<HistoricalPoint[]> {
+    const primaryAdapter = this.getAdapter(platform);
+    if (primaryAdapter.fetchHistoricalChart) {
+      try {
+        const points = await primaryAdapter.fetchHistoricalChart(symbol, timeframe);
+        if (points && points.length >= 2) {
+          return points;
+        }
+      } catch {}
+    }
+
+    // 容灾 1: Binance
+    if (platform !== 'Binance') {
+      try {
+        const binance = this.getAdapter('Binance');
+        if (binance.fetchHistoricalChart) {
+          const points = await binance.fetchHistoricalChart(symbol, timeframe);
+          if (points && points.length >= 2) return points;
+        }
+      } catch {}
+    }
+
+    // 容灾 2: Gate.io (国内网络高可用)
+    try {
+      const gate = this.getAdapter('GateIO');
+      if (gate && gate.fetchHistoricalChart) {
+        const points = await gate.fetchHistoricalChart(symbol, timeframe);
+        if (points && points.length >= 2) return points;
+      }
+    } catch {}
+
+    // 容灾 3: CoinGecko
+    if (platform !== 'CoinGecko') {
+      try {
+        const cg = this.getAdapter('CoinGecko');
+        if (cg.fetchHistoricalChart) {
+          const fallbackId = resolveCoinGeckoId(symbol);
+          const points = await cg.fetchHistoricalChart(fallbackId, timeframe);
+          if (points && points.length >= 2) return points;
+        }
+      } catch {}
+    }
+
+    return [];
   }
 
   /**

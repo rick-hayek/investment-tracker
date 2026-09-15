@@ -3,6 +3,7 @@ import {
   OKXAdapter,
   CoinbaseAdapter,
   CoinGeckoAdapter,
+  GateIOAdapter,
 } from '../src/services/adapters';
 
 describe('Exchange Adapters (多平台行情适配器测试)', () => {
@@ -239,6 +240,56 @@ describe('Exchange Adapters (多平台行情适配器测试)', () => {
       expect(points.length).toBe(2);
       expect(points[0].timestamp).toBe(1720000000000);
       expect(points[1].price).toBe(64900);
+    });
+
+    it('GateIOAdapter.fetchHistoricalChart 正确转换 candlesticks', async () => {
+      const adapter = new GateIOAdapter();
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          ['1720000000', '1000', '65000', '65500', '64800', '64900'],
+          ['1720003600', '1200', '65200', '65800', '65000', '65000'],
+        ],
+      } as any);
+
+      const points = await adapter.fetchHistoricalChart('BTC', '24H');
+      expect(points.length).toBe(2);
+      expect(points[0].timestamp).toBe(1720000000000);
+      expect(points[0].price).toBe(65000);
+    });
+  });
+
+  describe('GateIOAdapter', () => {
+    const adapter = new GateIOAdapter();
+
+    it('格式化代币代码为 BTC_USDT 格式', () => {
+      expect(adapter.formatSymbol('BTC')).toBe('BTC_USDT');
+      expect(adapter.formatSymbol('BTCUSDT')).toBe('BTC_USDT');
+      expect(adapter.formatSymbol('BTC-USDT')).toBe('BTC_USDT');
+      expect(adapter.formatSymbol('ETH_USDC')).toBe('ETH_USDC');
+    });
+
+    it('成功解析 24hr Ticker 响应数据 (v4 接口)', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          {
+            currency_pair: 'BTC_USDT',
+            last: '68500.2',
+            change_percentage: '2.45',
+            high_24h: '69000.0',
+            low_24h: '67000.0',
+          },
+        ],
+      } as any);
+
+      const ticker = await adapter.fetchTicker('BTC');
+      expect(ticker.symbol).toBe('BTC_USDT');
+      expect(ticker.priceUSD).toBe(68500.2);
+      expect(ticker.change24hPercent).toBe(2.45);
+      expect(ticker.high24h).toBe(69000);
+      expect(ticker.low24h).toBe(67000);
+      expect(ticker.isFallback).toBe(false);
     });
   });
 });

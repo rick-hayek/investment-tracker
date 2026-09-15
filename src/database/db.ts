@@ -55,6 +55,13 @@ export async function runMigrations(db: IDatabaseConnection): Promise<void> {
   } catch {
     // 字段已存在时忽略错误
   }
+
+  // 增量迁移: 补充 price_cache.symbol 字段
+  try {
+    await db.exec('ALTER TABLE price_cache ADD COLUMN symbol TEXT;');
+  } catch {
+    // 字段已存在时忽略错误
+  }
 }
 
 /**

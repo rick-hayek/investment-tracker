@@ -2,7 +2,25 @@ import { IExchangeAdapter, TickerData, HistoricalPoint } from './types';
 
 export class OKXAdapter implements IExchangeAdapter {
   readonly platformName = 'OKX';
-  private readonly baseUrl = 'https://www.okx.com';
+  private readonly candidateBaseUrls = [
+    'https://www.okx.com',
+    'https://okx.com',
+    'https://aws.okx.com',
+  ];
+
+  private async fetchWithTimeout(url: string, timeoutMs = 3500): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      return res;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   formatSymbol(inputSymbol: string): string {
     const raw = inputSymbol.trim().toUpperCase();
@@ -30,44 +48,52 @@ export class OKXAdapter implements IExchangeAdapter {
 
   async fetchTicker(symbol: string): Promise<TickerData> {
     const formatted = this.formatSymbol(symbol);
-    const url = `${this.baseUrl}/api/v5/market/ticker?instId=${formatted}`;
+    let lastError: Error | null = null;
 
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-      },
-    });
+    for (const base of this.candidateBaseUrls) {
+      try {
+        const url = `${base}/api/v5/market/ticker?instId=${formatted}`;
+        const response = await this.fetchWithTimeout(url, 3500);
 
-    if (!response.ok) {
-      throw new Error(`OKX API error: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(`OKX API error: ${response.status} ${response.statusText}`);
+        }
+
+        const json = await response.json();
+        if (json.code !== '0' || !json.data || json.data.length === 0) {
+          throw new Error(`OKX ticker not found: ${json.msg || 'No data'}`);
+        }
+
+        const item = json.data[0];
+        const priceUSD = parseFloat(item.last);
+        const open24h = item.open24h ? parseFloat(item.open24h) : null;
+        let change24hPercent = 0;
+        if (open24h && open24h > 0) {
+          change24hPercent = ((priceUSD - open24h) / open24h) * 100;
+        }
+
+        const high24h = item.high24h ? parseFloat(item.high24h) : undefined;
+        const low24h = item.low24h ? parseFloat(item.low24h) : undefined;
+        const lastUpdated = item.ts ? parseInt(item.ts, 10) : Date.now();
+
+        return {
+          symbol: formatted,
+          priceUSD: isNaN(priceUSD) ? 0 : priceUSD,
+          change24hPercent: parseFloat(change24hPercent.toFixed(2)),
+          high24h,
+          low24h,
+          lastUpdated,
+          isFallback: false,
+        };
+      } catch (err: any) {
+        lastError = err;
+        if (err.message && (err.message.includes('not found') || err.message.includes('51001'))) {
+          throw err;
+        }
+      }
     }
 
-    const json = await response.json();
-    if (json.code !== '0' || !json.data || json.data.length === 0) {
-      throw new Error(`OKX ticker not found: ${json.msg || 'No data'}`);
-    }
-
-    const item = json.data[0];
-    const priceUSD = parseFloat(item.last);
-    const open24h = item.open24h ? parseFloat(item.open24h) : null;
-    let change24hPercent = 0;
-    if (open24h && open24h > 0) {
-      change24hPercent = ((priceUSD - open24h) / open24h) * 100;
-    }
-
-    const high24h = item.high24h ? parseFloat(item.high24h) : undefined;
-    const low24h = item.low24h ? parseFloat(item.low24h) : undefined;
-    const lastUpdated = item.ts ? parseInt(item.ts, 10) : Date.now();
-
-    return {
-      symbol: formatted,
-      priceUSD: isNaN(priceUSD) ? 0 : priceUSD,
-      change24hPercent: parseFloat(change24hPercent.toFixed(2)),
-      high24h,
-      low24h,
-      lastUpdated,
-      isFallback: false,
-    };
+    throw lastError || new Error('OKX API error: all endpoints failed');
   }
 
   async fetchHistoricalChart(

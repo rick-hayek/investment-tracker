@@ -325,6 +325,26 @@ mindmap
 
 ---
 
+### 3.10 市价本地持久化与中国国内网络高可用容灾调度 (Market Price Persistence & China-Friendly Fallback Pipeline)
+
+- **功能编号**：`FR-PRICE-01` / `FR-PRICE-02`
+- **设计定位**：解决应用冷启动时市价为 0 导致总资产缩水与收益率暴跌至 `-100.0%` 的视觉冲击，并针对中国大陆地区网络受限（GFW 拦截、DNS 污染导致主流交易所 API 无法连通）提供高可用备用源与即时秒开持久化机制。
+- **核心规格与处理流程**：
+  1. **市价本地持久化与零等待秒开 (`price_cache`)**：
+     - 本地 SQLite 维护 `price_cache` 数据表，持久化存储 `asset_id`、`symbol`、`current_price`、`change_24h_percent`、`high_24h`、`low_24h` 与 `updated_at`；
+     - **冷启动即刻装载**：应用启动或 `reloadData` 时，优先同步读取本地持久化价格注入内存状态，用户进入应用第一秒即呈现真实资产与持仓市值，**彻底杜绝 `$0.00 (-100.0%)` 闪烁**；
+     - **静默异步更新**：后台轮询或手动刷新获取到最新价格后，自动批量覆盖写入本地 SQLite，保证离线与下次启动持续复用。
+  2. **中国大陆网络高可用备用源与多级容灾管线 (Multi-Tier Fallback)**：
+     - **主选平台多节点重试**：
+       - `Binance`：优先调用币安官方免翻墙公共数据直连节点 `https://data-api.binance.vision`，并备用 `api.binance.com`、`api3.binance.com`；
+       - `OKX`：备用 `www.okx.com`、`okx.com` 与 `aws.okx.com`；
+     - **一级备用源 (Binance Vision)**：若 OKX / Coinbase 被拦截，自动由全球直连免翻墙公共行情节点 `data-api.binance.vision` 快速接管；
+     - **二级备用源 (Gate.io)**：引入官方免鉴权公开 API（`api.gateio.ws` 与国内公开镜像 `data.gateapi.io`），具备极速响应与全币种覆盖能力（包括主流币与各类小市值热门代币）；
+     - **三级备用源 (CoinGecko)**：公共 API 兜底；
+     - **终极断网防御**：若处于飞行模式或极端全网断开状态，系统自动保持上一次本地持久化价格，永不归零。
+
+---
+
 ## 4. 业务规则与财务计算模型 (Business Rules)
 
 ### 4.1 交易所资金沙盒与可用本金流转模型 (Platform Siloed Ledger Model)

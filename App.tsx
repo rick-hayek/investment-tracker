@@ -18,6 +18,7 @@ import { AssetRepository } from './src/database/repositories/assetRepository';
 import { TransactionRepository } from './src/database/repositories/transactionRepository';
 import { DepositRepository } from './src/database/repositories/depositRepository';
 import { SettingsRepository, DEFAULT_USER_SETTINGS } from './src/database/repositories/settingsRepository';
+import { PriceCacheRepository } from './src/database/repositories/priceCacheRepository';
 import { AddTransactionModal, DepositModal } from './src/components/transactions';
 import { TotalPortfolioCard } from './src/components/portfolio/TotalPortfolioCard';
 import { AssetList } from './src/components/portfolio/AssetList';
@@ -41,6 +42,7 @@ export default function App() {
   const txRepo = useMemo(() => new TransactionRepository(), []);
   const depositRepo = useMemo(() => new DepositRepository(), []);
   const settingsRepo = useMemo(() => new SettingsRepository(), []);
+  const priceCacheRepo = useMemo(() => new PriceCacheRepository(), []);
 
   // 用户偏好设置与后台遮罩状态
   const [userSettings, setUserSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
@@ -143,13 +145,18 @@ export default function App() {
       const loadedAssets = await assetRepo.findAll();
       const loadedTxs = await txRepo.findAll();
       const loadedDeposits = await depositRepo.findAll();
+      const cachedPrices = await priceCacheRepo.getAllPrices();
       setAssets(loadedAssets);
       setTransactions(loadedTxs);
       setDeposits(loadedDeposits);
+      // 优先即时装载上次持久化的市价，避免冷启动时市价为0或-100%闪烁
+      if (Object.keys(cachedPrices).length > 0) {
+        setMarketPrices((prev) => ({ ...cachedPrices, ...prev }));
+      }
     } catch (err) {
       console.warn('Reload data error:', err);
     }
-  }, [assetRepo, txRepo, depositRepo]);
+  }, [assetRepo, txRepo, depositRepo, priceCacheRepo]);
 
   // 初始化数据库与数据迁移
   const initSeedData = useCallback(async () => {
@@ -221,18 +228,37 @@ export default function App() {
     if (assets.length === 0) return;
     try {
       const updates: Record<string, { price: number; change24h: number }> = {};
+      const batchToCache: Array<{
+        assetId: string;
+        symbol: string;
+        price: number;
+        change24hPercent: number;
+        high24h?: number;
+        low24h?: number;
+      }> = [];
+
       await Promise.all(
         assets.map(async (asset) => {
           try {
             const ticker = await defaultExchangeService.fetchTicker(asset.platform, asset.symbol);
-            updates[asset.id] = {
-              price: ticker.priceUSD,
-              change24h: ticker.change24hPercent,
-            };
-            updates[asset.symbol.toLowerCase()] = {
-              price: ticker.priceUSD,
-              change24h: ticker.change24hPercent,
-            };
+            if (ticker && ticker.priceUSD > 0) {
+              updates[asset.id] = {
+                price: ticker.priceUSD,
+                change24h: ticker.change24hPercent,
+              };
+              updates[asset.symbol.toLowerCase()] = {
+                price: ticker.priceUSD,
+                change24h: ticker.change24hPercent,
+              };
+              batchToCache.push({
+                assetId: asset.id,
+                symbol: asset.symbol,
+                price: ticker.priceUSD,
+                change24hPercent: ticker.change24hPercent,
+                high24h: ticker.high24h,
+                low24h: ticker.low24h,
+              });
+            }
           } catch {
             // 个别资产拉取失败不中断全局
           }
@@ -240,11 +266,13 @@ export default function App() {
       );
       if (Object.keys(updates).length > 0) {
         setMarketPrices((prev) => ({ ...prev, ...updates }));
+        // 在后台持久化最新市价，下次启动秒开复用
+        await priceCacheRepo.saveBatchPrices(batchToCache).catch(() => {});
       }
     } catch (err) {
       console.warn('Refresh prices error:', err);
     }
-  }, [assets]);
+  }, [assets, priceCacheRepo]);
 
   // 15 秒前台智能轮询 & 后台自动休眠
   const { isPolling } = useMarketPoll(refreshPrices, { intervalMs: 15000, enabled: true });

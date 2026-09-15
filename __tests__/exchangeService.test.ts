@@ -84,6 +84,35 @@ describe('ExchangeService (调度与容灾降级服务测试)', () => {
     await expect(service.fetchTicker('OKX', 'BTC')).rejects.toThrow('OKX API error: 500');
   });
 
+  it('当主平台 OKX 失败时，能自动从 Gate.io 等国内备用源获取价格', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('okx.com')) {
+        return Promise.reject(new Error('Network error: OKX connection blocked'));
+      }
+      if (url.includes('binance')) {
+        return Promise.reject(new Error('Binance timeout'));
+      }
+      if (url.includes('gateio.ws')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              currency_pair: 'BTC_USDT',
+              last: '68900.5',
+              change_percentage: '1.8',
+            },
+          ],
+        });
+      }
+      return Promise.reject(new Error('Unknown url'));
+    });
+
+    const result = await service.fetchTicker('OKX', 'BTC');
+    expect(result.isFallback).toBe(true);
+    expect(result.priceUSD).toBe(68900.5);
+    expect(result.change24hPercent).toBe(1.8);
+  });
+
   it('支持批量并发拉取多个标的行情 (fetchBatchTickers)', async () => {
     global.fetch = jest.fn().mockImplementation((url: string) => {
       if (url.includes('binance.com')) {

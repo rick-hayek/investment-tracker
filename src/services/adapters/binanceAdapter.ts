@@ -2,7 +2,28 @@ import { IExchangeAdapter, TickerData, HistoricalPoint } from './types';
 
 export class BinanceAdapter implements IExchangeAdapter {
   readonly platformName = 'Binance';
-  private readonly baseUrl = 'https://api.binance.com';
+
+  // 多节点支持：包含币安官方公共数据节点 (国内免翻墙直连) 与常规交易节点
+  private readonly candidateBaseUrls = [
+    'https://data-api.binance.vision',
+    'https://api.binance.com',
+    'https://api3.binance.com',
+    'https://api1.binance.com',
+  ];
+
+  private async fetchWithTimeout(url: string, timeoutMs = 3500): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      return res;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   formatSymbol(inputSymbol: string): string {
     const clean = inputSymbol.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -28,34 +49,42 @@ export class BinanceAdapter implements IExchangeAdapter {
 
   async fetchTicker(symbol: string): Promise<TickerData> {
     const formatted = this.formatSymbol(symbol);
-    const url = `${this.baseUrl}/api/v3/ticker/24hr?symbol=${formatted}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-      },
-    });
+    let lastError: Error | null = null;
 
-    if (!response.ok) {
-      throw new Error(`Binance API error: ${response.status} ${response.statusText}`);
+    for (const base of this.candidateBaseUrls) {
+      try {
+        const url = `${base}/api/v3/ticker/24hr?symbol=${formatted}`;
+        const response = await this.fetchWithTimeout(url, 3500);
+
+        if (!response.ok) {
+          throw new Error(`Binance API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const priceUSD = parseFloat(data.lastPrice);
+        const change24hPercent = parseFloat(data.priceChangePercent);
+        const high24h = data.highPrice ? parseFloat(data.highPrice) : undefined;
+        const low24h = data.lowPrice ? parseFloat(data.lowPrice) : undefined;
+
+        return {
+          symbol: formatted,
+          priceUSD: isNaN(priceUSD) ? 0 : priceUSD,
+          change24hPercent: isNaN(change24hPercent) ? 0 : change24hPercent,
+          high24h,
+          low24h,
+          lastUpdated: data.closeTime || Date.now(),
+          isFallback: false,
+        };
+      } catch (err: any) {
+        lastError = err;
+        // 若为 400 (Bad Request - 交易对不存在)，直接抛出无需重试其他镜像
+        if (err.message && err.message.includes('400')) {
+          throw err;
+        }
+      }
     }
 
-    const data = await response.json();
-
-    const priceUSD = parseFloat(data.lastPrice);
-    const change24hPercent = parseFloat(data.priceChangePercent);
-    const high24h = data.highPrice ? parseFloat(data.highPrice) : undefined;
-    const low24h = data.lowPrice ? parseFloat(data.lowPrice) : undefined;
-
-    return {
-      symbol: formatted,
-      priceUSD: isNaN(priceUSD) ? 0 : priceUSD,
-      change24hPercent: isNaN(change24hPercent) ? 0 : change24hPercent,
-      high24h,
-      low24h,
-      lastUpdated: data.closeTime || Date.now(),
-      isFallback: false,
-    };
+    throw lastError || new Error('Binance API error: all endpoints failed');
   }
 
   async fetchHistoricalChart(

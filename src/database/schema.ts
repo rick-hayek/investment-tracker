@@ -57,6 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_deposits_platform ON deposits(platform, timestamp
 export const CREATE_PRICE_CACHE_TABLE = `
 CREATE TABLE IF NOT EXISTS price_cache (
     asset_id TEXT PRIMARY KEY,
+    symbol TEXT,
     current_price REAL NOT NULL,
     change_24h_percent REAL DEFAULT 0,
     high_24h REAL,
