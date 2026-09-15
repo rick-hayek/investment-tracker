@@ -20,6 +20,7 @@ import { LanguageType, t } from '../../i18n';
 import { formatCurrentDateTime, parseTransactionDateTime } from '../../utils/dateUtils';
 import { CloseCrossIcon, LockIcon, CalendarIcon, ChevronRightIcon, renderPlatformLogo } from '../common/Icons';
 import { DateTimePickerModal } from '../common/DateTimePickerModal';
+import { useTheme, ThemePalette } from '../../theme';
 
 export interface DepositModalProps {
   visible: boolean;
@@ -53,6 +54,8 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   onSuccess,
   enabledPlatforms,
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [activeTab, setActiveTab] = useState<CapitalOperationType>(initialType);
 
   const displayedPlatforms = useMemo(() => {
@@ -203,7 +206,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                   onPress={onClose}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <CloseCrossIcon size={20} color="#94A3B8" />
+                  <CloseCrossIcon size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>
                   {activeTab === 'DEPOSIT' ? t('deposit.depositTitle', language) : t('deposit.withdrawTitle', language)}
@@ -330,7 +333,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                       style={styles.amountInput}
                       keyboardType="numeric"
                       placeholder="0.00"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={colors.textMuted}
                       value={amountStr}
                       onChangeText={(val) => {
                         setAmountStr(val);
@@ -366,7 +369,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                     <View style={styles.datePickerTriggerLeft}>
                       <CalendarIcon
                         size={18}
-                        color={dateStr.trim().length > 0 ? '#38BDF8' : '#64748B'}
+                        color={dateStr.trim().length > 0 ? colors.accent : colors.textMuted}
                       />
                       <Text
                         style={[
@@ -388,11 +391,11 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
                         <View style={styles.clearIconCircle}>
-                          <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                          <CloseCrossIcon size={12} color={colors.textSecondary} strokeWidth={2.5} />
                         </View>
                       </TouchableOpacity>
                     ) : (
-                      <ChevronRightIcon size={16} color="#64748B" />
+                      <ChevronRightIcon size={16} color={colors.textMuted} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -403,7 +406,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                   <TextInput
                     style={[styles.textInput, styles.notesInput]}
                     placeholder={t('deposit.notesPlaceholder', language)}
-                    placeholderTextColor="#64748B"
+                    placeholderTextColor={colors.textMuted}
                     value={notes}
                     onChangeText={setNotes}
                     multiline
@@ -413,7 +416,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                 {/* 平台资金隔离防混淆提示 */}
                 <View style={styles.isolationNotice}>
                   <View style={styles.isolationIcon}>
-                    <LockIcon size={14} color="#38BDF8" />
+                    <LockIcon size={14} color={colors.accent} />
                   </View>
                   <Text style={styles.isolationNoticeText}>
                     {t('deposit.platformIsolationNotice', language).replace('{platform}', platform)}
@@ -473,362 +476,369 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(5, 10, 20, 0.82)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    maxHeight: '90%',
-    width: '100%',
-  },
-  modalContent: {
-    backgroundColor: '#0F172A',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingBottom: RNPlatform.OS === 'ios' ? 36 : 24,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(30, 41, 59, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    color: '#F8FAFC',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  headerPlaceholder: {
-    width: 36,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 16,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    padding: 3,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 9,
-  },
-  tabDepositActive: {
-    backgroundColor: '#0284C7',
-  },
-  tabWithdrawActive: {
-    backgroundColor: '#E11D48',
-  },
-  tabText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabDepositTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  tabWithdrawTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  scrollForm: {
-    paddingHorizontal: 20,
-    maxHeight: 460,
-  },
-  scrollFormContent: {
-    paddingTop: 16,
-    paddingBottom: 20,
-  },
-  formGroup: {
-    marginBottom: 16,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  formLabel: {
-    color: '#CBD5E1',
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  holdingInfoText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  singlePlatformBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(18, 26, 43, 0.7)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 16,
-  },
-  singlePlatformLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  singlePlatformText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  singlePlatformBalanceVal: {
-    color: '#38BDF8',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  maxWithdrawBtnText: {
-    color: '#F43F5E',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  platformIconRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  platformIconCard: {
-    flex: 1,
-    minWidth: '22%',
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: '#1E293B',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  platformIconCardWithName: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  platformCardNameText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  platformCardDepositNameSelected: {
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  platformCardWithdrawNameSelected: {
-    color: '#F43F5E',
-    fontWeight: '700',
-  },
-  platformCardDepositSelected: {
-    borderColor: '#38BDF8',
-    backgroundColor: 'rgba(56, 189, 248, 0.16)',
-  },
-  platformCardWithdrawSelected: {
-    borderColor: '#F43F5E',
-    backgroundColor: 'rgba(244, 63, 94, 0.16)',
-  },
-  currencyRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  currencyChip: {
-    flex: 1,
-    paddingVertical: 11,
-    borderRadius: 10,
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    alignItems: 'center',
-  },
-  currencyChipDepositSelected: {
-    borderColor: '#38BDF8',
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-  },
-  currencyChipWithdrawSelected: {
-    borderColor: '#F43F5E',
-    backgroundColor: 'rgba(244, 63, 94, 0.15)',
-  },
-  currencyChipText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  currencyChipTextSelected: {
-    color: '#F8FAFC',
-    fontWeight: '700',
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 14,
-  },
-  inputPrefix: {
-    color: '#64748B',
-    fontSize: 18,
-    fontWeight: '600',
-    marginRight: 6,
-  },
-  amountInput: {
-    flex: 1,
-    color: '#F8FAFC',
-    fontSize: 18,
-    fontWeight: '700',
-    paddingVertical: 12,
-  },
-  textInput: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    color: '#F8FAFC',
-    fontSize: 14,
-  },
-  notesInput: {
-    height: 64,
-    textAlignVertical: 'top',
-  },
-  currentTimeBtn: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  datePickerTrigger: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  datePickerTriggerActive: {
-    borderColor: 'rgba(56, 189, 248, 0.4)',
-    backgroundColor: 'rgba(30, 41, 59, 0.95)',
-  },
-  datePickerTriggerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    marginRight: 8,
-  },
-  datePickerTriggerText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  datePickerTriggerPlaceholder: {
-    color: '#64748B',
-    fontSize: 13,
-    fontWeight: '400',
-  },
-  dateTriggerClearBtn: {
-    padding: 2,
-  },
-  clearIconCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fieldErrorText: {
-    color: '#F43F5E',
-    fontSize: 12,
-    marginTop: 5,
-  },
-  isolationNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.2)',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  isolationIcon: {
-    marginTop: 1,
-  },
-  isolationNoticeText: {
-    flex: 1,
-    color: '#7DD3FC',
-    fontSize: 11.5,
-    lineHeight: 16,
-  },
-  errorBox: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 6,
-  },
-  errorBoxText: {
-    color: '#FCA5A5',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-  submitButton: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitDepositBtn: {
-    backgroundColor: '#0284C7',
-  },
-  submitWithdrawBtn: {
-    backgroundColor: '#E11D48',
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-});
+const getStyles = (colors: ThemePalette, isDark: boolean) =>
+  StyleSheet.create({
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.modalOverlay,
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      maxHeight: '90%',
+      width: '100%',
+    },
+    modalContent: {
+      backgroundColor: colors.cardBackground,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingBottom: RNPlatform.OS === 'ios' ? 36 : 24,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    closeButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    headerPlaceholder: {
+      width: 36,
+    },
+    tabContainer: {
+      flexDirection: 'row',
+      marginHorizontal: 20,
+      marginTop: 16,
+      backgroundColor: isDark ? '#1E293B' : colors.inputBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      padding: 3,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 9,
+    },
+    tabDepositActive: {
+      backgroundColor: colors.accent,
+    },
+    tabWithdrawActive: {
+      backgroundColor: colors.loss,
+    },
+    tabText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    tabDepositTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    tabWithdrawTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    scrollForm: {
+      paddingHorizontal: 20,
+      maxHeight: 460,
+    },
+    scrollFormContent: {
+      paddingTop: 16,
+      paddingBottom: 20,
+    },
+    formGroup: {
+      marginBottom: 16,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    formLabel: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 8,
+    },
+    holdingInfoText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    singlePlatformBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: isDark ? 'rgba(18, 26, 43, 0.7)' : colors.cardBackgroundSecondary,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 16,
+    },
+    singlePlatformLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    singlePlatformText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    singlePlatformBalanceVal: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    maxWithdrawBtnText: {
+      color: colors.loss,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    platformIconRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    platformIconCard: {
+      flex: 1,
+      minWidth: '22%',
+      height: 52,
+      borderRadius: 14,
+      backgroundColor: isDark ? '#1E293B' : colors.cardBackgroundSecondary,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    platformIconCardWithName: {
+      flexDirection: 'row',
+      paddingHorizontal: 12,
+      gap: 8,
+    },
+    platformCardNameText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    platformCardDepositNameSelected: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    platformCardWithdrawNameSelected: {
+      color: colors.loss,
+      fontWeight: '700',
+    },
+    platformCardDepositSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentLight,
+    },
+    platformCardWithdrawSelected: {
+      borderColor: colors.loss,
+      backgroundColor: colors.lossLight,
+    },
+    currencyRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    currencyChip: {
+      flex: 1,
+      paddingVertical: 11,
+      borderRadius: 10,
+      backgroundColor: isDark ? '#1E293B' : colors.cardBackgroundSecondary,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+    },
+    currencyChipDepositSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentLight,
+    },
+    currencyChipWithdrawSelected: {
+      borderColor: colors.loss,
+      backgroundColor: colors.lossLight,
+    },
+    currencyChipText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    currencyChipTextSelected: {
+      color: colors.textPrimary,
+      fontWeight: '700',
+    },
+    inputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      paddingHorizontal: 14,
+    },
+    inputPrefix: {
+      color: colors.textMuted,
+      fontSize: 18,
+      fontWeight: '600',
+      marginRight: 6,
+    },
+    amountInput: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: '700',
+      paddingVertical: 12,
+    },
+    textInput: {
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      color: colors.textPrimary,
+      fontSize: 14,
+    },
+    notesInput: {
+      height: 64,
+      textAlignVertical: 'top',
+    },
+    currentTimeBtn: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    datePickerTrigger: {
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    datePickerTriggerActive: {
+      borderColor: colors.accent,
+      backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : colors.cardBackground,
+    },
+    datePickerTriggerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      flex: 1,
+      marginRight: 8,
+    },
+    datePickerTriggerText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    datePickerTriggerPlaceholder: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: '400',
+    },
+    dateTriggerClearBtn: {
+      padding: 2,
+    },
+    clearIconCircle: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    fieldErrorText: {
+      color: colors.loss,
+      fontSize: 12,
+      marginTop: 5,
+    },
+    isolationNotice: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.accentLight,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.25)',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      gap: 8,
+      marginTop: 4,
+      marginBottom: 8,
+    },
+    isolationIcon: {
+      marginTop: 1,
+    },
+    isolationNoticeText: {
+      flex: 1,
+      color: colors.accent,
+      fontSize: 11.5,
+      lineHeight: 16,
+    },
+    errorBox: {
+      backgroundColor: colors.dangerContainer,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(220, 38, 38, 0.25)',
+      borderRadius: 10,
+      padding: 10,
+      marginTop: 6,
+    },
+    errorBoxText: {
+      color: colors.dangerText,
+      fontSize: 12,
+      textAlign: 'center',
+    },
+    footer: {
+      paddingHorizontal: 20,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    submitButton: {
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    submitDepositBtn: {
+      backgroundColor: colors.accent,
+    },
+    submitWithdrawBtn: {
+      backgroundColor: colors.loss,
+    },
+    submitButtonDisabled: {
+      opacity: 0.5,
+    },
+    submitButtonText: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '700',
+    },
+  });

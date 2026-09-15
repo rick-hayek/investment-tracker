@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Deposit, Transaction, CurrencyType, PlatformType, DepositCurrency } from '../../domain/types';
 import { extractBaseSymbol } from '../../services/symbolMapper';
 import { LanguageType, t } from '../../i18n';
+import { useTheme, ThemePalette } from '../../theme';
 
 export interface DepositHistoryListProps {
   deposits: Deposit[];
@@ -34,6 +35,8 @@ export const DepositHistoryList: React.FC<DepositHistoryListProps> = ({
   currency,
   language = 'zh',
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [filterMode, setFilterMode] = useState<CapitalFlowFilterMode>('TRANSFERS');
 
   // 构建统一本金资金流水明细
@@ -261,175 +264,176 @@ export const DepositHistoryList: React.FC<DepositHistoryListProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 18,
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  titleLeftGroup: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    letterSpacing: -0.2,
-  },
-  countText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  filterPillContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#162032',
-    borderRadius: 8,
-    padding: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  filterPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  filterPillActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-  },
-  filterPillText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  filterPillTextActive: {
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  tableCard: {
-    backgroundColor: 'rgba(18, 26, 43, 0.75)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    overflow: 'hidden',
-  },
-  rowItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginHorizontal: 16,
-  },
-  cardLeft: {
-    flex: 1,
-    gap: 4,
-    marginRight: 12,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  badgeDeposit: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    borderColor: 'rgba(56, 189, 248, 0.4)',
-  },
-  badgeWithdraw: {
-    backgroundColor: 'rgba(244, 63, 94, 0.15)',
-    borderColor: 'rgba(244, 63, 94, 0.4)',
-  },
-  badgeBuy: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderColor: 'rgba(245, 158, 11, 0.4)',
-  },
-  badgeSell: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  typeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  textDeposit: {
-    color: '#38BDF8',
-  },
-  textWithdraw: {
-    color: '#F43F5E',
-  },
-  textBuy: {
-    color: '#F59E0B',
-  },
-  textSell: {
-    color: '#10B981',
-  },
-  tradeDetailText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  dateText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  notesText: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
-  },
-  cardRight: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  amountText: {
-    fontSize: 15,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  amountDeposit: {
-    color: '#38BDF8',
-  },
-  amountWithdraw: {
-    color: '#F43F5E',
-  },
-  amountBuy: {
-    color: '#F59E0B',
-  },
-  amountSell: {
-    color: '#10B981',
-  },
-  emptyCard: {
-    backgroundColor: '#121A2B',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    paddingVertical: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    color: '#64748B',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-});
+const getStyles = (colors: ThemePalette, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 18,
+      marginBottom: 24,
+      paddingHorizontal: 16,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    titleLeftGroup: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 8,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    countText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '500',
+    },
+    filterPillContainer: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? '#162032' : colors.cardBackgroundSecondary,
+      borderRadius: 8,
+      padding: 2,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    filterPill: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    filterPillActive: {
+      backgroundColor: colors.accentLight,
+    },
+    filterPillText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    filterPillTextActive: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    tableCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      overflow: 'hidden',
+    },
+    rowItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.divider,
+      marginHorizontal: 16,
+    },
+    cardLeft: {
+      flex: 1,
+      gap: 4,
+      marginRight: 12,
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    typeBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    badgeDeposit: {
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+      borderColor: isDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.25)',
+    },
+    badgeWithdraw: {
+      backgroundColor: isDark ? 'rgba(244, 63, 94, 0.15)' : 'rgba(225, 29, 72, 0.1)',
+      borderColor: isDark ? 'rgba(244, 63, 94, 0.4)' : 'rgba(225, 29, 72, 0.25)',
+    },
+    badgeBuy: {
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(217, 119, 6, 0.1)',
+      borderColor: isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(217, 119, 6, 0.25)',
+    },
+    badgeSell: {
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(5, 150, 105, 0.1)',
+      borderColor: isDark ? 'rgba(16, 185, 129, 0.4)' : 'rgba(5, 150, 105, 0.25)',
+    },
+    typeText: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    textDeposit: {
+      color: isDark ? '#38BDF8' : '#0284C7',
+    },
+    textWithdraw: {
+      color: isDark ? '#F43F5E' : '#E11D48',
+    },
+    textBuy: {
+      color: isDark ? '#F59E0B' : '#D97706',
+    },
+    textSell: {
+      color: isDark ? '#10B981' : '#059669',
+    },
+    tradeDetailText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    dateText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '500',
+    },
+    notesText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      lineHeight: 16,
+    },
+    cardRight: {
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+    },
+    amountText: {
+      fontSize: 15,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+    },
+    amountDeposit: {
+      color: isDark ? '#38BDF8' : '#0284C7',
+    },
+    amountWithdraw: {
+      color: isDark ? '#F43F5E' : '#E11D48',
+    },
+    amountBuy: {
+      color: isDark ? '#F59E0B' : '#D97706',
+    },
+    amountSell: {
+      color: isDark ? '#10B981' : '#059669',
+    },
+    emptyCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingVertical: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyText: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+  });

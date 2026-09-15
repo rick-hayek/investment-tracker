@@ -4,6 +4,7 @@ import { Transaction, CurrencyType, PlatformType } from '../../domain/types';
 import { PnLEngine } from '../../domain/calculations/pnlEngine';
 import { formatCurrencyValue } from '../../domain/currency';
 import { LanguageType, t } from '../../i18n';
+import { useTheme, ThemePalette } from '../../theme';
 
 export interface TransactionHistoryListProps {
   transactions: Transaction[];
@@ -26,6 +27,9 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
   language = 'zh',
   onPressTransaction,
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+
   // 严格过滤仅属于当前平台的交易
   const filtered = useMemo(() => {
     return platform
@@ -212,200 +216,210 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 30,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  countText: {
-    color: '#64748B',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  tableCard: {
-    backgroundColor: 'rgba(18, 26, 43, 0.75)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  rowItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginHorizontal: 16,
-  },
-  cardLeft: {
-    flex: 1,
-    gap: 4,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  typeBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeBuy: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-  },
-  badgeSell: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-  },
-  typeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  textBuy: {
-    color: '#10B981',
-  },
-  textSell: {
-    color: '#EF4444',
-  },
-  platformBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  platformText: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  dateText: {
-    color: '#64748B',
-    fontSize: 11,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  amountText: {
-    color: '#F8FAFC',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  priceSubText: {
-    color: '#94A3B8',
-    fontSize: 12,
-  },
-  totalSubText: {
-    color: '#64748B',
-    fontSize: 11,
-  },
-  notesText: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontStyle: 'italic',
-  },
-  cardRight: {
-    alignItems: 'flex-end',
-    gap: 3,
-    marginLeft: 10,
-  },
-  pnlRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  pnlAmountText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  pnlPercentInline: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusTag: {
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 2,
-  },
-  costSubText: {
-    color: '#F59E0B',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  buyCostAmountText: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  textNeutral: {
-    color: '#94A3B8',
-  },
-  statusProfit: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-  },
-  statusTextProfit: {
-    color: '#10B981',
-  },
-  statusLoss: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-  },
-  statusTextLoss: {
-    color: '#EF4444',
-  },
-  statusNeutral: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-  },
-  statusTextNeutral: {
-    color: '#F59E0B',
-  },
-  statusBuyExpenditure: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-  },
-  statusTextBuyExpenditure: {
-    color: '#38BDF8',
-  },
-  statusUnrealized: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-  },
-  statusRealized: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-  },
-  statusTagText: {
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  statusTextUnrealized: {
-    color: '#38BDF8',
-  },
-  statusTextRealized: {
-    color: '#F59E0B',
-  },
-  emptyCard: {
-    padding: 24,
-    backgroundColor: 'rgba(18, 26, 43, 0.4)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: '#64748B',
-    fontSize: 13,
-  },
-});
+const getStyles = (colors: ThemePalette, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 18,
+      marginBottom: 24,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    countText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '500',
+    },
+    tableCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      overflow: 'hidden',
+    },
+    rowItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.divider,
+      marginHorizontal: 16,
+    },
+    cardLeft: {
+      flex: 1,
+      gap: 4,
+      marginRight: 12,
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flexWrap: 'wrap',
+    },
+    typeBadge: {
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    badgeBuy: {
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      borderColor: isDark ? 'rgba(16, 185, 129, 0.4)' : 'rgba(16, 185, 129, 0.3)',
+    },
+    badgeSell: {
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)',
+    },
+    typeText: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    textBuy: {
+      color: colors.gain,
+    },
+    textSell: {
+      color: colors.loss,
+    },
+    textNeutral: {
+      color: colors.textMuted,
+    },
+    platformBadge: {
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)',
+    },
+    platformText: {
+      fontSize: 10,
+      color: colors.accent,
+      fontWeight: '600',
+    },
+    dateText: {
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: '500',
+    },
+    detailRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 6,
+      flexWrap: 'wrap',
+    },
+    amountText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      fontVariant: ['tabular-nums'],
+    },
+    priceSubText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    costSubText: {
+      fontSize: 11,
+      color: colors.textMuted,
+    },
+    totalSubText: {
+      fontSize: 11,
+      color: colors.textMuted,
+    },
+    notesText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      lineHeight: 16,
+    },
+    cardRight: {
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+    },
+    pnlRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+    },
+    buyCostAmountText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      fontVariant: ['tabular-nums'],
+    },
+    pnlAmountText: {
+      fontSize: 14,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+    },
+    pnlPercentInline: {
+      fontSize: 12,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+    },
+    statusTag: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      marginTop: 4,
+      borderWidth: 1,
+    },
+    statusBuyExpenditure: {
+      backgroundColor: isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(100, 116, 139, 0.08)',
+      borderColor: isDark ? 'rgba(148, 163, 184, 0.25)' : 'rgba(100, 116, 139, 0.18)',
+    },
+    statusTextBuyExpenditure: {
+      fontSize: 10,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    statusProfit: {
+      backgroundColor: colors.gainLight,
+      borderColor: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)',
+    },
+    statusNeutral: {
+      backgroundColor: isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(100, 116, 139, 0.08)',
+      borderColor: isDark ? 'rgba(148, 163, 184, 0.25)' : 'rgba(100, 116, 139, 0.18)',
+    },
+    statusLoss: {
+      backgroundColor: colors.lossLight,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)',
+    },
+    statusTagText: {
+      fontSize: 10,
+      fontWeight: '600',
+    },
+    statusTextProfit: {
+      color: colors.gain,
+    },
+    statusTextNeutral: {
+      color: colors.textMuted,
+    },
+    statusTextLoss: {
+      color: colors.loss,
+    },
+    emptyCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingVertical: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyText: {
+      color: colors.textMuted,
+      fontSize: 13,
+    },
+  });

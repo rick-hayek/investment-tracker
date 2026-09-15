@@ -18,6 +18,7 @@ import { AssetPerformanceCard } from './AssetPerformanceCard';
 import { InteractiveChart } from '../charts/InteractiveChart';
 import { TransactionHistoryList } from './TransactionHistoryList';
 import { LanguageType, t } from '../../i18n';
+import { useTheme, ThemePalette } from '../../theme';
 import {
   ChevronLeftIcon,
   StarIcon,
@@ -57,6 +58,8 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
   onToggleFavorite,
 }) => {
   const isFavorite = propIsFavorite ?? holding?.isFavorite ?? false;
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
   // 加载该资产的历史交易流水 (严格限定匹配当前资产与当前平台)
@@ -100,12 +103,15 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#090D16" />
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.background}
+        />
 
         {/* 顶部导航栏 (匹配 03_asset_detail.jpg) */}
         <View style={styles.navBar}>
           <TouchableOpacity onPress={onClose} style={styles.iconBtn} activeOpacity={0.7}>
-            <ChevronLeftIcon size={20} color="#F8FAFC" />
+            <ChevronLeftIcon size={20} color={colors.textPrimary} />
           </TouchableOpacity>
 
           <View style={styles.titleCenter}>
@@ -130,7 +136,7 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
           >
             <StarIcon
               size={18}
-              color={isFavorite ? '#FBBF24' : '#94A3B8'}
+              color={isFavorite ? '#FBBF24' : colors.textMuted}
               filled={isFavorite}
             />
           </TouchableOpacity>
@@ -199,114 +205,115 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#090D16',
-  },
-  navBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: 'rgba(30, 41, 59, 0.7)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backArrowText: {
-    color: '#F8FAFC',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  titleCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  navTitle: {
-    color: '#F8FAFC',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  platformBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.4)',
-  },
-  platformBadgeText: {
-    color: '#60A5FA',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  starIcon: {
-    fontSize: 20,
-    color: '#94A3B8',
-  },
-  starIconActive: {
-    color: '#F59E0B',
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 76, // 为底部吸底按钮留白
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
-    backgroundColor: 'rgba(9, 13, 22, 0.95)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  bottomBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 11,
-    borderRadius: 12,
-  },
-  btnBuy: {
-    backgroundColor: '#10B981',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  btnSell: {
-    backgroundColor: '#EF4444',
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  bottomBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
-});
+const getStyles = (colors: ThemePalette, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    navBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    iconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    backArrowText: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+    titleCenter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    navTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    platformBadge: {
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.25)',
+    },
+    platformBadgeText: {
+      color: colors.accent,
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    starIcon: {
+      fontSize: 20,
+      color: colors.textMuted,
+    },
+    starIconActive: {
+      color: '#F59E0B',
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 76, // 为底部吸底按钮留白
+    },
+    bottomBar: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: Platform.OS === 'ios' ? 24 : 14,
+      backgroundColor: isDark ? 'rgba(9, 13, 22, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    bottomBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 11,
+      borderRadius: 12,
+    },
+    btnBuy: {
+      backgroundColor: '#10B981',
+      shadowColor: '#10B981',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    btnSell: {
+      backgroundColor: '#EF4444',
+      shadowColor: '#EF4444',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    bottomBtnText: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '700',
+      letterSpacing: -0.2,
+    },
+  });

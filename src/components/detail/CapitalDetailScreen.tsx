@@ -13,6 +13,7 @@ import { PlatformType, DepositCurrency, CurrencyType, Deposit, Transaction } fro
 import { CapitalItem } from '../portfolio/CapitalList';
 import { formatCurrencyValue } from '../../domain/currency';
 import { LanguageType, t } from '../../i18n';
+import { useTheme, ThemePalette } from '../../theme';
 import { DepositHistoryList } from './DepositHistoryList';
 import {
   ChevronLeftIcon,
@@ -47,6 +48,9 @@ export const CapitalDetailScreen: React.FC<CapitalDetailScreenProps> = ({
   onOpenWithdraw,
   onDeleteDeposit,
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+
   // 统计当前平台与当前币种的累计入金与出金总额
   const { totalDeposited, totalWithdrawn } = useMemo(() => {
     if (!item) return { totalDeposited: 0, totalWithdrawn: 0 };
@@ -71,12 +75,15 @@ export const CapitalDetailScreen: React.FC<CapitalDetailScreenProps> = ({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#090D16" />
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.background}
+        />
 
         {/* 顶部导航栏 */}
         <View style={styles.navBar}>
           <TouchableOpacity onPress={onClose} style={styles.iconBtn} activeOpacity={0.7}>
-            <ChevronLeftIcon size={20} color="#F8FAFC" />
+            <ChevronLeftIcon size={20} color={colors.textPrimary} />
           </TouchableOpacity>
 
           <View style={styles.titleCenter}>
@@ -165,160 +172,161 @@ export const CapitalDetailScreen: React.FC<CapitalDetailScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#090D16',
-  },
-  navBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: 'rgba(30, 41, 59, 0.7)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderBtn: {
-    width: 38,
-    height: 38,
-  },
-  titleCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  navTitle: {
-    color: '#F8FAFC',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  platformBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.4)',
-  },
-  platformBadgeText: {
-    color: '#60A5FA',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  summaryCard: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 20,
-    borderRadius: 18,
-    backgroundColor: '#121A2B',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  summaryLabel: {
-    fontSize: 13,
-    color: '#94A3B8',
-    fontWeight: '500',
-    marginBottom: 6,
-  },
-  mainValueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  mainAmount: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-  },
-  tokenBalanceSub: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 18,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  statItem: {
-    flex: 1,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  statDeposit: {
-    color: '#38BDF8',
-  },
-  statWithdraw: {
-    color: '#F43F5E',
-  },
-  statDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginHorizontal: 16,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 28,
-    backgroundColor: 'rgba(9, 13, 22, 0.95)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  bottomBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  btnDeposit: {
-    backgroundColor: '#0284C7',
-  },
-  btnWithdraw: {
-    backgroundColor: '#E11D48',
-  },
-  bottomBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-});
+const getStyles = (colors: ThemePalette, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    navBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    iconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    placeholderBtn: {
+      width: 38,
+      height: 38,
+    },
+    titleCenter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    navTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    platformBadge: {
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.25)',
+    },
+    platformBadgeText: {
+      color: colors.accent,
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    scrollContent: {
+      paddingBottom: 100,
+    },
+    summaryCard: {
+      marginHorizontal: 16,
+      marginTop: 16,
+      padding: 20,
+      borderRadius: 18,
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    summaryLabel: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      marginBottom: 6,
+    },
+    mainValueRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 8,
+    },
+    mainAmount: {
+      fontSize: 32,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      letterSpacing: -0.5,
+      fontVariant: ['tabular-nums'],
+    },
+    tokenBalanceSub: {
+      fontSize: 13,
+      color: colors.textMuted,
+      fontWeight: '600',
+      marginTop: 4,
+    },
+    statsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 18,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.divider,
+    },
+    statItem: {
+      flex: 1,
+    },
+    statLabel: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '500',
+      marginBottom: 4,
+    },
+    statValue: {
+      fontSize: 15,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+    },
+    statDeposit: {
+      color: isDark ? '#38BDF8' : '#0284C7',
+    },
+    statWithdraw: {
+      color: isDark ? '#F43F5E' : '#E11D48',
+    },
+    statDivider: {
+      width: 1,
+      height: 28,
+      backgroundColor: colors.divider,
+      marginHorizontal: 16,
+    },
+    bottomBar: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 28,
+      backgroundColor: isDark ? 'rgba(9, 13, 22, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    bottomBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 14,
+      borderRadius: 14,
+    },
+    btnDeposit: {
+      backgroundColor: '#0284C7',
+    },
+    btnWithdraw: {
+      backgroundColor: '#E11D48',
+    },
+    bottomBtnText: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '700',
+    },
+  });

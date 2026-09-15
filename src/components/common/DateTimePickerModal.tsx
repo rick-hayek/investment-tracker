@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { CalendarIcon, ClockIcon, CloseCrossIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from './Icons';
 import { formatCurrentDateTime } from '../../utils/dateUtils';
+import { useTheme, ThemePalette } from '../../theme';
 
 export interface DateTimePickerModalProps {
   visible: boolean;
@@ -43,6 +44,8 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
   onClose,
   language = 'zh',
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const isZh = language === 'zh';
 
   // 解析初始日期
@@ -311,7 +314,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
               {/* 弹窗头部 */}
               <View style={styles.headerRow}>
                 <View style={styles.headerTitleRow}>
-                  <CalendarIcon size={20} color="#38BDF8" />
+                  <CalendarIcon size={20} color={colors.accent} />
                   <Text style={styles.headerTitle}>
                     {isZh ? '选择交易时间' : 'Select Date & Time'}
                   </Text>
@@ -321,7 +324,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                   style={styles.closeBtn}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <CloseCrossIcon size={16} color="#94A3B8" />
+                  <CloseCrossIcon size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -363,7 +366,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                   onPress={() => setActiveTab('date')}
                   activeOpacity={0.7}
                 >
-                  <CalendarIcon size={16} color={activeTab === 'date' ? '#38BDF8' : '#64748B'} />
+                  <CalendarIcon size={16} color={activeTab === 'date' ? colors.accent : colors.textMuted} />
                   <Text style={[styles.tabText, activeTab === 'date' && styles.tabTextActive]}>
                     {`${selectedYear}-${pad(selectedMonth + 1)}-${pad(selectedDay)}`}
                   </Text>
@@ -374,7 +377,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                   onPress={() => setActiveTab('time')}
                   activeOpacity={0.7}
                 >
-                  <ClockIcon size={16} color={activeTab === 'time' ? '#38BDF8' : '#64748B'} />
+                  <ClockIcon size={16} color={activeTab === 'time' ? colors.accent : colors.textMuted} />
                   <Text style={[styles.tabText, activeTab === 'time' && styles.tabTextActive]}>
                     {`${pad(selectedHour)}:${pad(selectedMinute)}`}
                   </Text>
@@ -400,7 +403,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                       }}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                      <ChevronLeftIcon size={18} color="#94A3B8" />
+                      <ChevronLeftIcon size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
 
                     <View style={styles.navPillsRow}>
@@ -426,7 +429,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                             </Text>
                             <ChevronDownIcon
                               size={14}
-                              color={calendarViewMode === 'years' ? '#38BDF8' : '#94A3B8'}
+                              color={calendarViewMode === 'years' ? colors.accent : colors.textSecondary}
                             />
                           </TouchableOpacity>
 
@@ -450,7 +453,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                             </Text>
                             <ChevronDownIcon
                               size={14}
-                              color={calendarViewMode === 'months' ? '#38BDF8' : '#94A3B8'}
+                              color={calendarViewMode === 'months' ? colors.accent : colors.textSecondary}
                             />
                           </TouchableOpacity>
                         </>
@@ -476,7 +479,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                             </Text>
                             <ChevronDownIcon
                               size={14}
-                              color={calendarViewMode === 'months' ? '#38BDF8' : '#94A3B8'}
+                              color={calendarViewMode === 'months' ? colors.accent : colors.textSecondary}
                             />
                           </TouchableOpacity>
 
@@ -500,7 +503,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                             </Text>
                             <ChevronDownIcon
                               size={14}
-                              color={calendarViewMode === 'years' ? '#38BDF8' : '#94A3B8'}
+                              color={calendarViewMode === 'years' ? colors.accent : colors.textSecondary}
                             />
                           </TouchableOpacity>
                         </>
@@ -520,7 +523,7 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
                       }}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                      <ChevronRightIcon size={18} color="#94A3B8" />
+                      <ChevronRightIcon size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
 
@@ -837,456 +840,457 @@ export const DateTimePickerModal: React.FC<DateTimePickerModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(5, 10, 20, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalContainer: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: '#0F172A',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-    padding: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  quickPresetRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
-  presetBadge: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  presetBadgeText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(18, 26, 43, 0.9)',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  tabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  tabButtonActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.4)',
-  },
-  tabText: {
-    color: '#64748B',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  panelContent: {
-    minHeight: 280,
-  },
-  monthNavRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  navPillsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pickerNavPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  pickerNavPillActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    borderColor: 'rgba(56, 189, 248, 0.5)',
-  },
-  navArrowBtn: {
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-  },
-  monthNavTitle: {
-    color: '#F8FAFC',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  monthNavTitleActive: {
-    color: '#38BDF8',
-  },
-  selectorViewContainer: {
-    minHeight: 240,
-    justifyContent: 'flex-start',
-  },
-  selectorSubHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  selectorSubTitle: {
-    color: '#64748B',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  backToCalendarBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  backToCalendarText: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  quickYearsScrollWrap: {
-    maxHeight: 34,
-    marginBottom: 10,
-  },
-  quickYearsScroll: {
-    gap: 6,
-    paddingHorizontal: 2,
-  },
-  quickYearChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  quickYearChipActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    borderColor: '#38BDF8',
-  },
-  quickYearChipText: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  quickYearChipTextActive: {
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  yearScrollArea: {
-    height: 180,
-  },
-  yearGridContent: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    justifyContent: 'space-between',
-    paddingBottom: 10,
-  },
-  yearGridItem: {
-    width: '22%',
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  yearGridItemActive: {
-    backgroundColor: '#38BDF8',
-    borderColor: '#38BDF8',
-    shadowColor: '#38BDF8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  yearGridItemToday: {
-    borderColor: '#38BDF8',
-    borderWidth: 1.5,
-  },
-  yearGridItemText: {
-    color: '#F1F5F9',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  yearGridItemTextActive: {
-    color: '#0F172A',
-    fontWeight: '800',
-  },
-  yearGridItemTextToday: {
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  monthGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    justifyContent: 'space-between',
-    paddingTop: 6,
-  },
-  monthGridItem: {
-    width: '31%',
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 2,
-  },
-  monthGridItemActive: {
-    backgroundColor: '#38BDF8',
-    borderColor: '#38BDF8',
-    shadowColor: '#38BDF8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  monthGridItemText: {
-    color: '#F1F5F9',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  monthGridItemTextActive: {
-    color: '#0F172A',
-    fontWeight: '800',
-  },
-  weekdayRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 8,
-  },
-  weekdayText: {
-    width: 36,
-    textAlign: 'center',
-    color: '#64748B',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  weekendText: {
-    color: '#94A3B8',
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-  },
-  dayCell: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 2,
-  },
-  dayCellSelected: {
-    backgroundColor: '#38BDF8',
-    shadowColor: '#38BDF8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  dayCellToday: {
-    borderWidth: 1.5,
-    borderColor: '#38BDF8',
-  },
-  dayText: {
-    color: '#F1F5F9',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  dayTextMuted: {
-    color: '#334155',
-  },
-  dayTextSelected: {
-    color: '#0F172A',
-    fontWeight: '800',
-  },
-  dayTextToday: {
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  timeDisplayCard: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(18, 26, 43, 0.8)',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  timeDigitBox: {
-    alignItems: 'center',
-  },
-  timeAdjustBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-  timeAdjustBtnText: {
-    color: '#38BDF8',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  timeDigitText: {
-    color: '#FFFFFF',
-    fontSize: 36,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  timeUnitLabel: {
-    color: '#64748B',
-    fontSize: 11,
-    marginTop: 4,
-  },
-  timeColon: {
-    color: '#38BDF8',
-    fontSize: 36,
-    fontWeight: '800',
-    marginHorizontal: 16,
-    paddingBottom: 20,
-  },
-  timeSectionSubtitle: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  minuteGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    justifyContent: 'space-between',
-  },
-  minuteChip: {
-    width: '22%',
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  minuteChipSelected: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    borderColor: '#38BDF8',
-  },
-  minuteChipText: {
-    color: '#94A3B8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  minuteChipTextSelected: {
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 18,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  clearBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  clearBtnText: {
-    color: '#64748B',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  footerRightBtns: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  cancelBtn: {
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  cancelBtnText: {
-    color: '#94A3B8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  confirmBtn: {
-    paddingVertical: 9,
-    paddingHorizontal: 18,
-    borderRadius: 10,
-    backgroundColor: '#38BDF8',
-  },
-  confirmBtnText: {
-    color: '#0F172A',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-});
+const getStyles = (colors: ThemePalette, isDark: boolean) =>
+  StyleSheet.create({
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.modalOverlay,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 16,
+    },
+    modalContainer: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(56, 189, 248, 0.25)' : colors.cardBorderHighlight,
+      padding: 20,
+      shadowColor: isDark ? '#000000' : 'rgba(0, 0, 0, 0.2)',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: isDark ? 0.5 : 0.15,
+      shadowRadius: 20,
+      elevation: 12,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    closeBtn: {
+      padding: 4,
+    },
+    quickPresetRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 14,
+    },
+    presetBadge: {
+      flex: 1,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.inputBackground,
+      borderRadius: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 6,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    presetBadgeText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    tabsContainer: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? 'rgba(18, 26, 43, 0.9)' : colors.inputBackground,
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    tabButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    tabButtonActive: {
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.16)' : colors.accentLight,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(56, 189, 248, 0.4)' : colors.accent,
+    },
+    tabText: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    tabTextActive: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    panelContent: {
+      minHeight: 280,
+    },
+    monthNavRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+      paddingHorizontal: 4,
+    },
+    navPillsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    pickerNavPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    pickerNavPillActive: {
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : colors.accentLight,
+      borderColor: colors.accent,
+    },
+    navArrowBtn: {
+      padding: 8,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.inputBackground,
+      borderRadius: 8,
+    },
+    monthNavTitle: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    monthNavTitleActive: {
+      color: colors.accent,
+    },
+    selectorViewContainer: {
+      minHeight: 240,
+      justifyContent: 'flex-start',
+    },
+    selectorSubHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+      paddingHorizontal: 4,
+    },
+    selectorSubTitle: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    backToCalendarBtn: {
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : colors.accentLight,
+    },
+    backToCalendarText: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    quickYearsScrollWrap: {
+      maxHeight: 34,
+      marginBottom: 10,
+    },
+    quickYearsScroll: {
+      gap: 6,
+      paddingHorizontal: 2,
+    },
+    quickYearChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    quickYearChipActive: {
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : colors.accentLight,
+      borderColor: colors.accent,
+    },
+    quickYearChipText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    quickYearChipTextActive: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    yearScrollArea: {
+      height: 180,
+    },
+    yearGridContent: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      justifyContent: 'space-between',
+      paddingBottom: 10,
+    },
+    yearGridItem: {
+      width: '22%',
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    yearGridItemActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+      shadowColor: colors.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.4,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    yearGridItemToday: {
+      borderColor: colors.accent,
+      borderWidth: 1.5,
+    },
+    yearGridItemText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    yearGridItemTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+    },
+    yearGridItemTextToday: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    monthGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      justifyContent: 'space-between',
+      paddingTop: 6,
+    },
+    monthGridItem: {
+      width: '31%',
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginVertical: 2,
+    },
+    monthGridItemActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+      shadowColor: colors.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.4,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    monthGridItemText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    monthGridItemTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+    },
+    weekdayRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      marginBottom: 8,
+    },
+    weekdayText: {
+      width: 36,
+      textAlign: 'center',
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    weekendText: {
+      color: colors.textSecondary,
+    },
+    calendarGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-around',
+    },
+    dayCell: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginVertical: 2,
+    },
+    dayCellSelected: {
+      backgroundColor: colors.accent,
+      shadowColor: colors.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.5,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    dayCellToday: {
+      borderWidth: 1.5,
+      borderColor: colors.accent,
+    },
+    dayText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    dayTextMuted: {
+      color: isDark ? '#334155' : '#CBD5E1',
+    },
+    dayTextSelected: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+    },
+    dayTextToday: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    timeDisplayCard: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: isDark ? 'rgba(18, 26, 43, 0.8)' : colors.inputBackground,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    timeDigitBox: {
+      alignItems: 'center',
+    },
+    timeAdjustBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+    },
+    timeAdjustBtnText: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    timeDigitText: {
+      color: colors.textPrimary,
+      fontSize: 36,
+      fontWeight: '800',
+      fontVariant: ['tabular-nums'],
+    },
+    timeUnitLabel: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 4,
+    },
+    timeColon: {
+      color: colors.accent,
+      fontSize: 36,
+      fontWeight: '800',
+      marginHorizontal: 16,
+      paddingBottom: 20,
+    },
+    timeSectionSubtitle: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+      marginBottom: 10,
+    },
+    minuteGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      justifyContent: 'space-between',
+    },
+    minuteChip: {
+      width: '22%',
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    minuteChipSelected: {
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : colors.accentLight,
+      borderColor: colors.accent,
+    },
+    minuteChipText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    minuteChipTextSelected: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    footerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 18,
+      paddingTop: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    clearBtn: {
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+    },
+    clearBtnText: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    footerRightBtns: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    cancelBtn: {
+      paddingVertical: 9,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : colors.inputBackground,
+    },
+    cancelBtnText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    confirmBtn: {
+      paddingVertical: 9,
+      paddingHorizontal: 18,
+      borderRadius: 10,
+      backgroundColor: colors.accent,
+    },
+    confirmBtnText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '700',
+    },
+  });

@@ -24,6 +24,7 @@ import { LanguageType, t } from '../../i18n';
 import { CustomAlertModal, AlertType, AlertButton } from '../common/CustomAlertModal';
 import { DateTimePickerModal } from '../common/DateTimePickerModal';
 import { CryptoLogo } from '../common/CryptoLogo';
+import { useTheme, ThemePalette } from '../../theme';
 
 import {
   CloseCrossIcon,
@@ -88,6 +89,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   exchangeService = defaultExchangeService,
   enabledPlatforms,
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const isEditing = !!editingTransaction;
   const [activeTab, setActiveTab] = useState<'BUY' | 'SELL'>(
     initialType === 'SELL' ? 'SELL' : 'BUY'
@@ -144,14 +147,16 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     }, 50);
   }, []);
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const handleClearAmount = useCallback(() => {
     setAmountStr('');
-    if (errorMessage) setErrorMessage(null);
+    setErrorMessage(null);
     amountInputRef.current?.focus();
     setTimeout(() => {
       amountInputRef.current?.focus();
     }, 50);
-  }, [errorMessage]);
+  }, []);
   const [dateStr, setDateStr] = useState('');
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [notes, setNotes] = useState('');
@@ -162,7 +167,6 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingPrice, setIsFetchingPrice] = useState(false);
   const [priceNotice, setPriceNotice] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [holdingQty, setHoldingQty] = useState<number>(0);
 
   // 现有正收益/正持仓的资产列表
@@ -755,8 +759,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     }
 
     // 针对卖出操作，执行权威实时持仓查验与优雅拦截
+    let currentHolding = effectiveHoldingQty;
     if (txType === 'SELL') {
-      let currentHolding = effectiveHoldingQty;
       if (txRepo) {
         try {
           let freshTxs = await txRepo.findByAssetId(assetId);
@@ -930,7 +934,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
   const isBuy = activeTab === 'BUY';
   const isSell = activeTab === 'SELL';
-  const themeColor = isBuy ? '#10B981' : '#EF4444';
+  const themeColor = isBuy ? colors.gain : colors.loss;
 
   return (
     <Modal
@@ -947,7 +951,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           {/* Header */}
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <CloseCrossIcon size={16} color="#94A3B8" />
+              <CloseCrossIcon size={16} color={colors.textSecondary} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>
               {isEditing
@@ -961,7 +965,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 activeOpacity={0.7}
                 disabled={isSubmitting}
               >
-                <TrashCanIcon size={18} color="#EF4444" />
+                <TrashCanIcon size={18} color={colors.loss} />
               </TouchableOpacity>
             ) : (
               <View style={styles.headerSpacer} />
@@ -1019,7 +1023,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         <View style={styles.labelRow}>
                           <Text style={styles.formLabel}>{t('transaction.targetAssetToBuy', language)}</Text>
                           <View style={styles.lockedBadge}>
-                            <LockIcon size={12} color="#94A3B8" />
+                            <LockIcon size={12} color={colors.textSecondary} />
                             <Text style={styles.lockedBadgeText}>{t('transaction.lockedHolding', language)}</Text>
                           </View>
                         </View>
@@ -1166,7 +1170,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                             value={symbol}
                             onChangeText={(val) => setSymbol(val.toUpperCase())}
                             placeholder="BTC / ETH / SOL"
-                            placeholderTextColor="#64748B"
+                            placeholderTextColor={colors.textMuted}
                             autoCapitalize="characters"
                             autoCorrect={false}
                           />
@@ -1178,7 +1182,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                               activeOpacity={0.7}
                             >
                               <View style={styles.clearIconCircle}>
-                                <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                                <CloseCrossIcon size={12} color={colors.textSecondary} strokeWidth={2.5} />
                               </View>
                             </TouchableOpacity>
                           )}
@@ -1196,7 +1200,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         <View style={styles.labelRow}>
                           <Text style={styles.formLabel}>{t('transaction.selectHoldingToSell', language)}</Text>
                           <View style={styles.lockedBadge}>
-                            <LockIcon size={12} color="#94A3B8" />
+                            <LockIcon size={12} color={colors.textSecondary} />
                             <Text style={styles.lockedBadgeText}>{t('transaction.lockedHolding', language)}</Text>
                           </View>
                         </View>
@@ -1275,7 +1279,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                               </View>
                             </View>
                             <View style={[styles.selectorRight, isHoldingDropdownOpen && styles.selectorRightRotated]}>
-                              <ChevronDownIcon size={18} color="#94A3B8" />
+                              <ChevronDownIcon size={18} color={colors.textSecondary} />
                             </View>
                           </TouchableOpacity>
 
@@ -1283,13 +1287,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                             <View style={styles.dropdownFloatingContainer}>
                               {availableHoldings.length > 4 && (
                                 <View style={styles.dropdownSearchWrapper}>
-                                  <SearchIcon size={14} color="#64748B" />
+                                  <SearchIcon size={14} color={colors.textMuted} />
                                   <TextInput
                                     style={styles.dropdownSearchInput}
                                     value={holdingSearchQuery}
                                     onChangeText={setHoldingSearchQuery}
                                     placeholder={language === 'zh' ? '搜索持仓代币代码/名称...' : 'Search token / name...'}
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor={colors.textMuted}
                                     autoCapitalize="characters"
                                     autoCorrect={false}
                                   />
@@ -1299,7 +1303,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                     >
                                       <View style={styles.clearIconCircleSmall}>
-                                        <CloseCrossIcon size={10} color="#94A3B8" strokeWidth={2.5} />
+                                        <CloseCrossIcon size={10} color={colors.textSecondary} strokeWidth={2.5} />
                                       </View>
                                     </TouchableOpacity>
                                   )}
@@ -1382,7 +1386,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                       disabled={isFetchingPrice}
                     >
                       {isFetchingPrice ? (
-                        <ActivityIndicator size="small" color="#38BDF8" />
+                        <ActivityIndicator size="small" color={colors.accent} />
                       ) : (
                         <Text style={styles.quickPriceBtnText}>{t('transaction.useMarketPrice', language)}</Text>
                       )}
@@ -1397,7 +1401,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                       onFocus={() => setIsHoldingDropdownOpen(false)}
                       keyboardType="decimal-pad"
                       placeholder="0.00"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={colors.textMuted}
                     />
                     {priceStr.length > 0 && (
                       <TouchableOpacity
@@ -1407,7 +1411,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         activeOpacity={0.7}
                       >
                         <View style={styles.clearIconCircle}>
-                          <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                          <CloseCrossIcon size={12} color={colors.textSecondary} strokeWidth={2.5} />
                         </View>
                       </TouchableOpacity>
                     )}
@@ -1439,7 +1443,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                       onFocus={() => setIsHoldingDropdownOpen(false)}
                       keyboardType="decimal-pad"
                       placeholder="0.00"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor={colors.textMuted}
                     />
                     {amountStr.length > 0 && (
                       <TouchableOpacity
@@ -1449,7 +1453,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         activeOpacity={0.7}
                       >
                         <View style={styles.clearIconCircle}>
-                          <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                          <CloseCrossIcon size={12} color={colors.textSecondary} strokeWidth={2.5} />
                         </View>
                       </TouchableOpacity>
                     )}
@@ -1494,7 +1498,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                     <View style={styles.datePickerTriggerLeft}>
                       <CalendarIcon
                         size={18}
-                        color={dateStr.trim().length > 0 ? '#38BDF8' : '#64748B'}
+                        color={dateStr.trim().length > 0 ? colors.accent : colors.textMuted}
                       />
                       <Text
                         style={[
@@ -1516,11 +1520,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
                         <View style={styles.clearIconCircle}>
-                          <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                          <CloseCrossIcon size={12} color={colors.textSecondary} strokeWidth={2.5} />
                         </View>
                       </TouchableOpacity>
                     ) : (
-                      <ChevronRightIcon size={16} color="#64748B" />
+                      <ChevronRightIcon size={16} color={colors.textMuted} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1619,707 +1623,704 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: '#0E1626',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    maxHeight: '90%',
-    paddingBottom: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: 'rgba(30, 41, 59, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeBtnText: {
-    color: '#94A3B8',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  modalTitle: {
-    color: '#F8FAFC',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  headerSpacer: {
-    width: 36,
-  },
-  scrollBody: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 16,
-    overflow: 'visible',
-  },
-  toggleGroup: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    borderRadius: 14,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  toggleBtnActiveBuy: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderWidth: 1,
-    borderColor: '#10B981',
-  },
-  toggleBtnActiveSell: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    borderWidth: 1,
-    borderColor: '#EF4444',
-  },
-  toggleBtnActiveDeposit: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    borderWidth: 1,
-    borderColor: '#3B82F6',
-  },
-  toggleBtnText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  toggleBtnTextActive: {
-    color: '#F8FAFC',
-    fontWeight: '700',
-  },
-  errorBanner: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  errorBannerText: {
-    color: '#EF4444',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  formGroup: {
-    gap: 6,
-    position: 'relative',
-  },
-  formGroupOpen: {
-    zIndex: 9999,
-    elevation: 30,
-  },
-  selectorWrapper: {
-    position: 'relative',
-    zIndex: 9999,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  formLabel: {
-    color: '#94A3B8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  holdingInfoText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  singlePlatformBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(18, 26, 43, 0.7)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 4,
-  },
-  singlePlatformLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  singlePlatformText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  singlePlatformBalanceVal: {
-    color: '#38BDF8',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  platformIconRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  platformIconCard: {
-    flex: 1,
-    minWidth: '22%',
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: '#1E293B',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  platformIconCardWithName: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  platformCardNameText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  platformCardNameTextSelected: {
-    color: '#38BDF8',
-    fontWeight: '700',
-  },
-  platformCardSelected: {
-    borderColor: '#38BDF8',
-    backgroundColor: 'rgba(56, 189, 248, 0.16)',
-  },
-  inputWithClearWrapper: {
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  inputBoxWithClear: {
-    backgroundColor: 'rgba(18, 26, 43, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-    paddingLeft: 14,
-    paddingRight: 42,
-    paddingVertical: 12,
-  },
-  clearInputBtn: {
-    position: 'absolute',
-    right: 12,
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  clearIconCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  inputBox: {
-    backgroundColor: 'rgba(18, 26, 43, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  notesBox: {
-    fontSize: 13,
-    paddingVertical: 10,
-  },
-  helperText: {
-    color: '#64748B',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  quickPriceBtn: {
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  quickPriceBtnText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  dateActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dateClearBtn: {
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  dateClearBtnText: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  datePickerTrigger: {
-    backgroundColor: 'rgba(18, 26, 43, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-  },
-  datePickerTriggerActive: {
-    borderColor: 'rgba(56, 189, 248, 0.4)',
-    backgroundColor: 'rgba(18, 26, 43, 0.95)',
-  },
-  datePickerTriggerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    marginRight: 8,
-  },
-  datePickerTriggerText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  datePickerTriggerPlaceholder: {
-    color: '#64748B',
-    fontSize: 14,
-    fontWeight: '400',
-  },
-  dateTriggerClearBtn: {
-    padding: 2,
-  },
-  fallbackNoticeText: {
-    color: '#F59E0B',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  maxChip: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  maxChipText: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  summaryBox: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  sumLabel: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sumVal: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  submitBtn: {
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  submitBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
-  deleteHeaderBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-  },
-  editActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  cancelEditBtn: {
-    flex: 1,
-    paddingVertical: 15,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelEditBtnText: {
-    color: '#94A3B8',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  saveEditBtnInRow: {
-    flex: 1,
-    marginTop: 0,
-  },
-  inputBoxError: {
-    borderColor: '#EF4444',
-    backgroundColor: 'rgba(239, 68, 68, 0.05)',
-  },
-  inlineWarningRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  inlineWarningText: {
-    color: '#EF4444',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  // 卖出持仓选择器样式
-  holdingSelectorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(18, 26, 43, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  holdingSelectorBoxActive: {
-    borderColor: '#3B82F6',
-    backgroundColor: 'rgba(59, 130, 246, 0.06)',
-  },
-  holdingSelectorBoxLocked: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(18, 26, 43, 0.6)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  selectorLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  selectorInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  selectorTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  selectorName: {
-    color: '#F8FAFC',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  selectorSub: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  selectorRight: {
-    paddingLeft: 8,
-  },
-  selectorRightRotated: {
-    transform: [{ rotate: '180deg' }],
-  },
-  platformBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  platformBadgeText: {
-    color: '#60A5FA',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  lockedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(148, 163, 184, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  lockedBadgeText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  // 悬浮 Popover 卡片 (悬空浮动在 Trigger 正下方，带有浓郁投影与平滑内滚动)
-  dropdownFloatingContainer: {
-    position: 'absolute',
-    top: '100%',
-    marginTop: 6,
-    left: 0,
-    right: 0,
-    backgroundColor: '#111A2E',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.45)',
-    borderRadius: 16,
-    zIndex: 10000,
-    elevation: 35,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.65,
-    shadowRadius: 20,
-    overflow: 'hidden',
-  },
-  dropdownBackdrop: {
-    position: 'absolute',
-    top: -1000,
-    left: -1000,
-    right: -1000,
-    bottom: -1000,
-    zIndex: 9998,
-  },
-  dropdownScroll: {
-    maxHeight: 340,
-  },
-  dropdownSearchWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-  },
-  dropdownSearchInput: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 13,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-  },
-  clearIconCircleSmall: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dropdownEmpty: {
-    paddingVertical: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dropdownEmptyText: {
-    color: '#64748B',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  dropdownItemActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-  },
-  textHighlight: {
-    color: '#38BDF8',
-  },
-  itemRight: {
-    alignItems: 'flex-end',
-  },
-  itemQtyText: {
-    color: '#94A3B8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  noHoldingsCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-    gap: 12,
-  },
-  noHoldingsCardText: {
-    color: '#94A3B8',
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  goToBuyBtn: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderWidth: 1,
-    borderColor: '#10B981',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  goToBuyBtnText: {
-    color: '#10B981',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  coinIconFallback: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coinIconFallbackText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  currencyRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  currencyChip: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  currencyChipSelected: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    borderColor: '#3B82F6',
-  },
-  currencyChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  currencyChipTextSelected: {
-    color: '#60A5FA',
-    fontWeight: '700',
-  },
-  isolationNoticeBox: {
-    backgroundColor: 'rgba(59, 130, 246, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.25)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 4,
-  },
-  isolationNoticeText: {
-    fontSize: 12,
-    color: '#93C5FD',
-    lineHeight: 18,
-  },
-  capitalShortfallBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  capitalShortfallInfo: {
-    flex: 1,
-    marginRight: 8,
-  },
-  capitalShortfallTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#F87171',
-    marginBottom: 2,
-  },
-  capitalShortfallText: {
-    fontSize: 12,
-    color: '#FCA5A5',
-    lineHeight: 16,
-  },
-  goToDepositBtn: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  goToDepositBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  sellProceedsBox: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 8,
-  },
-  sellProceedsText: {
-    fontSize: 12,
-    color: '#34D399',
-    lineHeight: 16,
-  },
-});
+const getStyles = (colors: ThemePalette, isDark: boolean) =>
+  StyleSheet.create({
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.modalOverlay,
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      backgroundColor: colors.cardBackground,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      maxHeight: '90%',
+      paddingBottom: 24,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    closeBtnText: {
+      color: colors.textSecondary,
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    modalTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    headerSpacer: {
+      width: 36,
+    },
+    scrollBody: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      gap: 16,
+      overflow: 'visible',
+    },
+    toggleGroup: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : colors.inputBackground,
+      borderRadius: 14,
+      padding: 4,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    toggleBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      borderRadius: 10,
+    },
+    toggleBtnActiveBuy: {
+      backgroundColor: colors.gain,
+    },
+    toggleBtnActiveSell: {
+      backgroundColor: colors.loss,
+    },
+    toggleBtnActiveDeposit: {
+      backgroundColor: colors.accent,
+    },
+    toggleBtnText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    toggleBtnTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    errorBanner: {
+      backgroundColor: colors.dangerContainer,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(220, 38, 38, 0.3)',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    errorBannerText: {
+      color: colors.dangerText,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    formGroup: {
+      gap: 6,
+      position: 'relative',
+    },
+    formGroupOpen: {
+      zIndex: 9999,
+      elevation: 30,
+    },
+    selectorWrapper: {
+      position: 'relative',
+      zIndex: 9999,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    formLabel: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    holdingInfoText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    singlePlatformBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: isDark ? 'rgba(18, 26, 43, 0.7)' : colors.cardBackgroundSecondary,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 4,
+    },
+    singlePlatformLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    singlePlatformText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    singlePlatformBalanceVal: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    platformIconRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    platformIconCard: {
+      flex: 1,
+      minWidth: '22%',
+      height: 52,
+      borderRadius: 14,
+      backgroundColor: isDark ? '#1E293B' : colors.cardBackgroundSecondary,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    platformIconCardWithName: {
+      flexDirection: 'row',
+      paddingHorizontal: 12,
+      gap: 8,
+    },
+    platformCardNameText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    platformCardNameTextSelected: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    platformCardSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentLight,
+    },
+    inputWithClearWrapper: {
+      position: 'relative',
+      justifyContent: 'center',
+    },
+    inputBoxWithClear: {
+      backgroundColor: colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: 12,
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+      paddingLeft: 14,
+      paddingRight: 42,
+      paddingVertical: 12,
+    },
+    clearInputBtn: {
+      position: 'absolute',
+      right: 12,
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    clearIconCircle: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    inputBox: {
+      backgroundColor: colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: 12,
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    notesBox: {
+      fontSize: 13,
+      paddingVertical: 10,
+    },
+    helperText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    quickPriceBtn: {
+      paddingVertical: 2,
+      paddingHorizontal: 6,
+    },
+    quickPriceBtnText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    dateActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    dateClearBtn: {
+      paddingVertical: 2,
+      paddingHorizontal: 6,
+    },
+    dateClearBtnText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    datePickerTrigger: {
+      backgroundColor: colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+    },
+    datePickerTriggerActive: {
+      borderColor: colors.accent,
+      backgroundColor: isDark ? 'rgba(18, 26, 43, 0.95)' : colors.cardBackground,
+    },
+    datePickerTriggerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      flex: 1,
+      marginRight: 8,
+    },
+    datePickerTriggerText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    datePickerTriggerPlaceholder: {
+      color: colors.textMuted,
+      fontSize: 14,
+      fontWeight: '400',
+    },
+    dateTriggerClearBtn: {
+      padding: 2,
+    },
+    fallbackNoticeText: {
+      color: '#F59E0B',
+      fontSize: 11,
+      marginTop: 2,
+    },
+    maxChip: {
+      backgroundColor: colors.accentLight,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    maxChipText: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    summaryBox: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : colors.cardBackgroundSecondary,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 4,
+    },
+    sumLabel: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    sumVal: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      fontWeight: '800',
+    },
+    submitBtn: {
+      borderRadius: 14,
+      paddingVertical: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.3 : 0.15,
+      shadowRadius: 10,
+      elevation: 4,
+    },
+    submitBtnText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '700',
+      letterSpacing: -0.2,
+    },
+    deleteHeaderBtn: {
+      backgroundColor: colors.dangerContainer,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(220, 38, 38, 0.3)',
+    },
+    editActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 6,
+      marginBottom: 6,
+    },
+    cancelEditBtn: {
+      flex: 1,
+      paddingVertical: 15,
+      borderRadius: 14,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelEditBtnText: {
+      color: colors.textSecondary,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    saveEditBtnInRow: {
+      flex: 1,
+      marginTop: 0,
+    },
+    inputBoxError: {
+      borderColor: colors.loss,
+      backgroundColor: colors.lossLight,
+    },
+    inlineWarningRow: {
+      marginTop: 6,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    inlineWarningText: {
+      color: colors.loss,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    // 卖出持仓选择器样式
+    holdingSelectorBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: isDark ? 'rgba(18, 26, 43, 0.9)' : colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    holdingSelectorBoxActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentLight,
+    },
+    holdingSelectorBoxLocked: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: isDark ? 'rgba(18, 26, 43, 0.6)' : colors.cardBackgroundSecondary,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    selectorLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    selectorInfo: {
+      flex: 1,
+      gap: 3,
+    },
+    selectorTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    selectorName: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    selectorSub: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    selectorRight: {
+      paddingLeft: 8,
+    },
+    selectorRightRotated: {
+      transform: [{ rotate: '180deg' }],
+    },
+    platformBadge: {
+      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    platformBadgeText: {
+      color: '#60A5FA',
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    lockedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    lockedBadgeText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    // 悬浮 Popover 卡片 (悬空浮动在 Trigger 正下方，带有浓郁投影与平滑内滚动)
+    dropdownFloatingContainer: {
+      position: 'absolute',
+      top: '100%',
+      marginTop: 6,
+      left: 0,
+      right: 0,
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(59, 130, 246, 0.45)' : colors.cardBorderHighlight,
+      borderRadius: 16,
+      zIndex: 10000,
+      elevation: 35,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: isDark ? 0.65 : 0.15,
+      shadowRadius: 20,
+      overflow: 'hidden',
+    },
+    dropdownBackdrop: {
+      position: 'absolute',
+      top: -1000,
+      left: -1000,
+      right: -1000,
+      bottom: -1000,
+      zIndex: 9998,
+    },
+    dropdownScroll: {
+      maxHeight: 340,
+    },
+    dropdownSearchWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : colors.inputBackground,
+    },
+    dropdownSearchInput: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 13,
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+    },
+    clearIconCircleSmall: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    dropdownEmpty: {
+      paddingVertical: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dropdownEmptyText: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: '500',
+    },
+    dropdownItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    dropdownItemActive: {
+      backgroundColor: colors.accentLight,
+    },
+    textHighlight: {
+      color: colors.accent,
+    },
+    itemRight: {
+      alignItems: 'flex-end',
+    },
+    itemQtyText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    noHoldingsCard: {
+      backgroundColor: isDark ? 'rgba(30, 41, 59, 0.4)' : colors.cardBackgroundSecondary,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 14,
+      padding: 16,
+      alignItems: 'center',
+      gap: 12,
+    },
+    noHoldingsCardText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+    goToBuyBtn: {
+      backgroundColor: colors.gainLight,
+      borderWidth: 1,
+      borderColor: colors.gain,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 10,
+    },
+    goToBuyBtnText: {
+      color: colors.gain,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    coinIconFallback: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    coinIconFallbackText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: 'bold',
+    },
+    currencyRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 4,
+    },
+    currencyChip: {
+      flex: 1,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : colors.cardBackgroundSecondary,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    currencyChipSelected: {
+      backgroundColor: colors.accentLight,
+      borderColor: colors.accent,
+    },
+    currencyChipText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    currencyChipTextSelected: {
+      color: colors.accent,
+      fontWeight: '700',
+    },
+    isolationNoticeBox: {
+      backgroundColor: colors.accentLight,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(2, 132, 199, 0.25)',
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 4,
+    },
+    isolationNoticeText: {
+      fontSize: 12,
+      color: colors.accent,
+      lineHeight: 18,
+    },
+    capitalShortfallBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.dangerContainer,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(220, 38, 38, 0.25)',
+      borderRadius: 12,
+      padding: 12,
+      marginTop: 4,
+      marginBottom: 4,
+    },
+    capitalShortfallInfo: {
+      flex: 1,
+      marginRight: 8,
+    },
+    capitalShortfallTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.dangerText,
+      marginBottom: 2,
+    },
+    capitalShortfallText: {
+      fontSize: 12,
+      color: colors.dangerText,
+      lineHeight: 16,
+    },
+    goToDepositBtn: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    goToDepositBtnText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    sellProceedsBox: {
+      backgroundColor: colors.gainLight,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(5, 150, 105, 0.25)',
+      borderRadius: 10,
+      padding: 10,
+      marginTop: 8,
+    },
+    sellProceedsText: {
+      fontSize: 12,
+      color: colors.gain,
+      lineHeight: 16,
+    },
+  });
 

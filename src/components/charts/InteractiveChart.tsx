@@ -13,6 +13,7 @@ import Svg, { Path, Defs, LinearGradient, Stop, Line, Circle } from 'react-nativ
 import { PlatformType, CurrencyType } from '../../domain/types';
 import { formatCurrencyValue } from '../../domain/currency';
 import { ExchangeService, defaultExchangeService } from '../../services/exchangeService';
+import { useTheme, ThemePalette } from '../../theme';
 import {
   TimeframeType,
   ChartDataPoint,
@@ -47,6 +48,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   currency,
   exchangeService = defaultExchangeService,
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeType>('24H');
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [activePoint, setActivePoint] = useState<ComputedPoint | null>(null);
@@ -96,7 +99,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     return chartData[chartData.length - 1].price >= chartData[0].price;
   }, [chartData]);
 
-  const strokeColor = isPositive ? '#10B981' : '#EF4444';
+  const strokeColor = isPositive ? colors.gain : colors.loss;
 
   // 触摸手势响应器 (Touch Scrubbing)
   const panResponder = useRef(
@@ -227,7 +230,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 y1={0}
                 x2={activePoint.x}
                 y2={CHART_HEIGHT}
-                stroke="rgba(255, 255, 255, 0.4)"
+                stroke={isDark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.25)'}
                 strokeWidth={1}
                 strokeDasharray="4, 4"
               />
@@ -237,14 +240,14 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 cx={activePoint.x}
                 cy={activePoint.y}
                 r={9}
-                fill="rgba(56, 189, 248, 0.25)"
+                fill={colors.accentLight}
               />
               <Circle
                 cx={activePoint.x}
                 cy={activePoint.y}
                 r={4.5}
-                fill="#FFFFFF"
-                stroke="#38BDF8"
+                fill={colors.cardBackground}
+                stroke={colors.accent}
                 strokeWidth={2}
               />
             </>
@@ -257,80 +260,88 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: 'rgba(18, 26, 43, 0.75)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 22,
-    padding: 18,
-    marginBottom: 20,
-  },
-  timeframeBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 14,
-  },
-  tfTab: {
-    flex: 1,
-    paddingVertical: 6,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  tfTabActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.4)',
-  },
-  tfTabText: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  tfTabTextActive: {
-    color: '#38BDF8',
-    fontWeight: '800',
-  },
-  inspectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-    minHeight: 44,
-  },
-  inspectPriceText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  inspectTimeText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  inspectPnlBadge: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  inspectPnlText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  svgWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 4,
-  },
-  scrubHintText: {
-    color: '#64748B',
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-});
+const getStyles = (colors: ThemePalette, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 22,
+      padding: 18,
+      marginBottom: 20,
+      shadowColor: isDark ? '#000' : 'rgba(0, 0, 0, 0.15)',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.3 : 0.08,
+      shadowRadius: 10,
+      elevation: 4,
+    },
+    timeframeBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.7)' : colors.inputBackground,
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    tfTab: {
+      flex: 1,
+      paddingVertical: 6,
+      alignItems: 'center',
+      borderRadius: 8,
+    },
+    tfTabActive: {
+      backgroundColor: colors.accentLight,
+      borderWidth: 1,
+      borderColor: colors.accent,
+    },
+    tfTabText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    tfTabTextActive: {
+      color: colors.accent,
+      fontWeight: '800',
+    },
+    inspectHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+      minHeight: 44,
+    },
+    inspectPriceText: {
+      color: colors.textPrimary,
+      fontSize: 22,
+      fontWeight: '800',
+    },
+    inspectTimeText: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2,
+    },
+    inspectPnlBadge: {
+      backgroundColor: colors.accentLight,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    inspectPnlText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    svgWrapper: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginVertical: 4,
+    },
+    scrubHintText: {
+      color: colors.textMuted,
+      fontSize: 11,
+      textAlign: 'center',
+      marginTop: 8,
+    },
+  });
