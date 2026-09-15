@@ -16,7 +16,7 @@ export const zh: TranslationDictionary = {
     off: '关闭',
   },
   nav: {
-    appTitle: '投资追踪',
+    appTitle: '投资跟踪管理',
     home: '资产',
     settings: '设置',
     assets: '资产列表',

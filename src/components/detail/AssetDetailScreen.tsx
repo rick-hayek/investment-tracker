@@ -37,6 +37,8 @@ export interface AssetDetailScreenProps {
   allTransactions?: Transaction[];
   txRepo?: TransactionRepository;
   exchangeService?: ExchangeService;
+  isFavorite?: boolean;
+  onToggleFavorite?: (holding: AssetHolding) => void;
 }
 
 export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
@@ -51,8 +53,10 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
   allTransactions,
   txRepo,
   exchangeService = defaultExchangeService,
+  isFavorite: propIsFavorite,
+  onToggleFavorite,
 }) => {
-  const [isFavorite, setIsFavorite] = useState(false);
+  const isFavorite = propIsFavorite ?? holding?.isFavorite ?? false;
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
   // 加载该资产的历史交易流水 (严格限定匹配当前资产与当前平台)
@@ -116,7 +120,11 @@ export const AssetDetailScreen: React.FC<AssetDetailScreenProps> = ({
           </View>
 
           <TouchableOpacity
-            onPress={() => setIsFavorite(!isFavorite)}
+            onPress={() => {
+              if (onToggleFavorite && holding) {
+                onToggleFavorite(holding);
+              }
+            }}
             style={styles.iconBtn}
             activeOpacity={0.7}
           >

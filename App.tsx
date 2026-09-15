@@ -10,7 +10,7 @@ import {
   AppState,
   AppStateStatus,
 } from 'react-native';
-import { Asset, Transaction, AssetHolding, TransactionType, PlatformType, CurrencyType, UserSettings, Deposit, DepositCurrency, CapitalOperationType } from './src/domain/types';
+import { Asset, Transaction, AssetHolding, TransactionType, PlatformType, CurrencyType, UserSettings, Deposit, DepositCurrency, CapitalOperationType, isAssetFavorite } from './src/domain/types';
 import { PnLEngine } from './src/domain/calculations/pnlEngine';
 import { getNextCurrency, formatCurrencyValue } from './src/domain/currency';
 import { initializeDatabase } from './src/database/db';
@@ -199,6 +199,21 @@ export default function App() {
         }
       }
 
+      // 默认平台平滑迁移：默认仅开启 Binance 和 OKX
+      const defaultPlatformsMigrationDone = await settingsRepo.getRawValue('default_platforms_binance_okx');
+      if (!defaultPlatformsMigrationDone) {
+        const currentSettings = await settingsRepo.getSettings();
+        if (
+          !currentSettings.enabledPlatforms ||
+          currentSettings.enabledPlatforms.length === 4 ||
+          (currentSettings.enabledPlatforms.includes('Coinbase') && currentSettings.enabledPlatforms.includes('CoinGecko'))
+        ) {
+          const updated = await settingsRepo.updateSettings({ enabledPlatforms: ['Binance', 'OKX'] });
+          setUserSettings(updated);
+        }
+        await settingsRepo.setRawValue('default_platforms_binance_okx', 'true');
+      }
+
       await reloadData();
     } catch (err) {
       console.warn('Init seed data error:', err);
@@ -287,6 +302,7 @@ export default function App() {
   // 汇总持仓统计计算
   const { summary, holdings } = useMemo(() => {
     const list: AssetHolding[] = [];
+    const favorites = userSettings.favorites || [];
 
     for (const asset of assets) {
       const txs = transactions.filter(
@@ -300,6 +316,7 @@ export default function App() {
           cur.price,
           cur.change24h
         );
+        holding.isFavorite = isAssetFavorite(holding, favorites);
         if (holding.totalQuantity > 0 || txs.length > 0) {
           list.push(holding);
         }
@@ -308,8 +325,17 @@ export default function App() {
       }
     }
 
-    // 智能排序：有效持仓在前 (按市值降序)，持仓为 0 (已清仓) 的代币自动放到列表最后
+    // 智能排序规则：
+    // 1. 收藏置顶：标记为收藏的代币排在最前面 (优先级最高，即使 0 持仓也排在未收藏的有持仓前面)
+    // 2. 0 持仓沉底：有效持仓在前 (按市值降序)，持仓为 0 (已清仓) 的代币自动放到列表最后
+    // 3. 次级排序：有持仓按市值降序，0 持仓按历史累计买入总花费降序
     list.sort((a, b) => {
+      const aFav = !!a.isFavorite;
+      const bFav = !!b.isFavorite;
+      if (aFav !== bFav) {
+        return aFav ? -1 : 1;
+      }
+
       const aHasQty = a.totalQuantity > 0;
       const bHasQty = b.totalQuantity > 0;
       if (aHasQty !== bHasQty) {
@@ -323,7 +349,7 @@ export default function App() {
 
     const portfolio = PnLEngine.calculatePortfolioSummary(list, deposits, transactions);
     return { summary: portfolio, holdings: list };
-  }, [assets, transactions, deposits, marketPrices]);
+  }, [assets, transactions, deposits, marketPrices, userSettings.favorites]);
 
   const openAddModal = (
     type: TransactionType = 'BUY',
@@ -381,6 +407,17 @@ export default function App() {
     return holdings.find((h) => h.assetId === selectedHolding.assetId) || selectedHolding;
   }, [holdings, selectedHolding]);
 
+  // 收藏 / 取消收藏代币
+  const handleToggleFavorite = async (holding: AssetHolding) => {
+    const key = holding.assetId || (holding.platform ? `${holding.symbol.toLowerCase()}_${holding.platform.toLowerCase()}` : holding.symbol.toLowerCase());
+    const currentFavorites = userSettings.favorites || [];
+    const isFav = isAssetFavorite(holding, currentFavorites);
+    const newFavorites = isFav
+      ? currentFavorites.filter((id) => id !== key && id !== holding.assetId && id !== holding.symbol.toLowerCase())
+      : [...currentFavorites, key];
+    await handleUpdateSettings({ favorites: newFavorites });
+  };
+
   // 屏幕左边缘右滑手势侦听器 (Edge Swipe)
   const edgeSwipeResponder = useRef(
     PanResponder.create({
@@ -424,6 +461,7 @@ export default function App() {
         userSettings={userSettings}
         baseCurrency={baseCurrency}
         handleUpdateSettings={handleUpdateSettings}
+        handleToggleFavorite={handleToggleFavorite}
         handleCycleCurrency={handleCycleCurrency}
         holdings={holdings}
         summary={summary}
@@ -478,6 +516,7 @@ interface AppContentProps {
   userSettings: UserSettings;
   baseCurrency: CurrencyType;
   handleUpdateSettings: (partial: Partial<UserSettings>) => Promise<void>;
+  handleToggleFavorite: (holding: AssetHolding) => Promise<void>;
   handleCycleCurrency: () => void;
   holdings: AssetHolding[];
   summary: any;
@@ -538,6 +577,7 @@ function AppContent({
   userSettings,
   baseCurrency,
   handleUpdateSettings,
+  handleToggleFavorite,
   handleCycleCurrency,
   holdings,
   summary,
@@ -689,7 +729,9 @@ function AppContent({
         >
           <MenuIcon size={20} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.navTitle, { color: colors.textPrimary }]}>Investment Tracker</Text>
+        <Text style={[styles.navTitle, { color: colors.textPrimary }]}>
+          {t('nav.appTitle', currentLanguage)}
+        </Text>
         <TouchableOpacity
           style={[
             styles.iconButton,
@@ -847,6 +889,8 @@ function AppContent({
         allTransactions={transactions}
         txRepo={txRepo}
         exchangeService={defaultExchangeService}
+        isFavorite={activeDetailHolding ? isAssetFavorite(activeDetailHolding, userSettings.favorites) : false}
+        onToggleFavorite={handleToggleFavorite}
       />
 
       {/* 稳定币本金详情与充提流水全屏页面 */}

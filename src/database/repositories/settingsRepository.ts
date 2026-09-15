@@ -1,4 +1,4 @@
-import { UserSettings, ALL_PLATFORMS_ALPHABETICAL } from '../../domain/types';
+import { UserSettings, DEFAULT_ENABLED_PLATFORMS } from '../../domain/types';
 import { IDatabaseConnection, getDatabaseInstance } from '../db';
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -7,7 +7,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   appSwitcherBlur: true,
   theme: 'dark',
   language: 'zh',
-  enabledPlatforms: [...ALL_PLATFORMS_ALPHABETICAL],
+  enabledPlatforms: [...DEFAULT_ENABLED_PLATFORMS],
+  favorites: [],
 };
 
 export class SettingsRepository {
@@ -35,7 +36,8 @@ export class SettingsRepository {
           enabledPlatforms:
             Array.isArray(parsed.enabledPlatforms) && parsed.enabledPlatforms.length > 0
               ? parsed.enabledPlatforms
-              : [...ALL_PLATFORMS_ALPHABETICAL],
+              : [...DEFAULT_ENABLED_PLATFORMS],
+          favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
         };
       }
     } catch (err) {

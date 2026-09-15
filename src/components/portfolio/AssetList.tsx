@@ -13,6 +13,7 @@ import { KNOWN_ASSETS } from '../../services/symbolMapper';
 import { LanguageType, t } from '../../i18n';
 
 import { CryptoLogo } from '../common/CryptoLogo';
+import { StarIcon } from '../common/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../theme';
 
@@ -67,6 +68,9 @@ export const AssetList: React.FC<AssetListProps> = ({
                   <View style={[styles.platformBadge, { backgroundColor: colors.accentLight }]}>
                     <Text style={[styles.platformBadgeText, { color: colors.accent }]}>{item.platform}</Text>
                   </View>
+                )}
+                {item.isFavorite && (
+                  <StarIcon size={12} color="#FBBF24" filled />
                 )}
               </View>
               <Text style={[styles.assetSub, { color: colors.textSecondary }]}>

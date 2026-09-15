@@ -10,7 +10,7 @@ import {
   Switch,
   ActivityIndicator,
 } from 'react-native';
-import { CurrencyType, UserSettings, Asset, Transaction, Deposit, ThemeMode, PlatformType, ALL_PLATFORMS_ALPHABETICAL } from '../../domain/types';
+import { CurrencyType, UserSettings, Asset, Transaction, Deposit, ThemeMode, PlatformType, ALL_PLATFORMS_ALPHABETICAL, DEFAULT_ENABLED_PLATFORMS } from '../../domain/types';
 import { CURRENCY_CONFIGS, getNextCurrency } from '../../domain/currency';
 import { defaultForexService, ForexRateInfo } from '../../services/forexService';
 import { DataExportService } from '../../services/dataExportService';
@@ -202,14 +202,44 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
     const currentDeposits = deposits.length > 0 ? deposits : (depositRepo ? await depositRepo.findAll() : []);
     const csvString = DataExportService.exportTransactionsToCSV(transactions, assets, currentDeposits);
-    await DataExportService.exportToFile('Investment_Transactions.csv', csvString, 'text/csv');
+    const res = await DataExportService.exportToFile('Investment_Transactions.csv', csvString, 'text/csv');
+    if (res.savedDirectly) {
+      showAlert(
+        lang === 'zh' ? '导出成功' : 'Export Succeeded',
+        lang === 'zh' ? '已成功将 Investment_Transactions.csv 下载并保存至手机存储。' : 'Successfully saved Investment_Transactions.csv to device storage.',
+        undefined,
+        'success'
+      );
+    } else if (!res.success && res.error && res.error !== '用户取消了选择') {
+      showAlert(
+        lang === 'zh' ? '导出失败' : 'Export Failed',
+        res.error,
+        undefined,
+        'danger'
+      );
+    }
   };
 
-  // 导出 JSON 全量备份到本地文件并调起系统保存面板 (包含资产、交易明细与本金流水)
+  // 导出 JSON 全量备份到本地文件并保存到手机存储 (包含资产、交易明细与本金流水)
   const handleExportJSON = async () => {
     const currentDeposits = deposits.length > 0 ? deposits : (depositRepo ? await depositRepo.findAll() : []);
     const jsonString = DataExportService.exportToJSONBackup(assets, transactions, settings, currentDeposits);
-    await DataExportService.exportToFile('InvestmentTracker_Backup.json', jsonString, 'application/json');
+    const res = await DataExportService.exportToFile('InvestmentTracker_Backup.json', jsonString, 'application/json');
+    if (res.savedDirectly) {
+      showAlert(
+        lang === 'zh' ? '导出成功' : 'Export Succeeded',
+        lang === 'zh' ? '已成功将 InvestmentTracker_Backup.json 下载并保存至手机存储。' : 'Successfully saved InvestmentTracker_Backup.json to device storage.',
+        undefined,
+        'success'
+      );
+    } else if (!res.success && res.error && res.error !== '用户取消了选择') {
+      showAlert(
+        lang === 'zh' ? '导出失败' : 'Export Failed',
+        res.error,
+        undefined,
+        'danger'
+      );
+    }
   };
 
   // 从手机本地选取文件（支持 .csv 与 .json 自动识别）
@@ -403,9 +433,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   // 切换交易所平台显示状态
-  const enabledPlatforms = settings.enabledPlatforms || [...ALL_PLATFORMS_ALPHABETICAL];
+  const enabledPlatforms = settings.enabledPlatforms || [...DEFAULT_ENABLED_PLATFORMS];
   const handleTogglePlatform = (targetPlatform: PlatformType, val: boolean) => {
-    const current = settings.enabledPlatforms || [...ALL_PLATFORMS_ALPHABETICAL];
+    const current = settings.enabledPlatforms || [...DEFAULT_ENABLED_PLATFORMS];
     if (val) {
       if (!current.includes(targetPlatform)) {
         const next = ALL_PLATFORMS_ALPHABETICAL.filter(

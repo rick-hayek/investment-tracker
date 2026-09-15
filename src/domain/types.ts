@@ -121,6 +121,7 @@ export interface AssetHolding {
   realizedPnL: number; // 历史已实现累计结转盈亏金额
   change24hPercent: number; // 24小时涨跌幅
   iconUrl?: string; // 代币 Logo 图标 URL 或本地路径
+  isFavorite?: boolean; // 是否被用户加入自选收藏 (优先置顶排在最前面)
 }
 
 /**
@@ -168,6 +169,11 @@ export type ThemeMode = 'system' | 'dark' | 'light';
 export const ALL_PLATFORMS_ALPHABETICAL: PlatformType[] = ['Binance', 'Coinbase', 'CoinGecko', 'OKX'];
 
 /**
+ * 默认启用的交易所平台 (Binance 与 OKX)
+ */
+export const DEFAULT_ENABLED_PLATFORMS: PlatformType[] = ['Binance', 'OKX'];
+
+/**
  * 用户配置模型
  */
 export interface UserSettings {
@@ -179,5 +185,26 @@ export interface UserSettings {
   language: LanguageType;
   cloudUser?: CloudUserInfo | null; // 登录 Google Drive 云端同步后保存的用户信息
   enabledPlatforms?: PlatformType[]; // 用户在记账与入金弹窗中启用的交易所列表
+  favorites?: string[]; // 用户收藏的资产 ID / Symbol 列表 (优先置顶排在最上面)
+}
+
+/**
+ * 校验指定资产或持仓是否已被用户加入自选收藏
+ */
+export function isAssetFavorite(
+  holding: { assetId?: string; symbol?: string; platform?: string },
+  favorites?: string[]
+): boolean {
+  if (!favorites || favorites.length === 0) return false;
+  if (holding.assetId && favorites.includes(holding.assetId)) return true;
+  if (holding.symbol) {
+    const sym = holding.symbol.toLowerCase();
+    if (favorites.includes(sym)) return true;
+    if (holding.platform) {
+      const symPlat = `${sym}_${holding.platform.toLowerCase()}`;
+      if (favorites.includes(symPlat)) return true;
+    }
+  }
+  return false;
 }
 

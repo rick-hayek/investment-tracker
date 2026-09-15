@@ -1,4 +1,4 @@
-import { Share } from 'react-native';
+import { Share, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -411,8 +411,43 @@ export class DataExportService {
     filename: string,
     content: string,
     mimeType: string = 'text/plain'
-  ): Promise<{ success: boolean; uri?: string; error?: string }> {
+  ): Promise<{ success: boolean; uri?: string; error?: string; savedDirectly?: boolean }> {
     try {
+      // 1. Android 端优先：直接调用 StorageAccessFramework 将文件保存至手机存储 (如 Download 目录)
+      if (Platform.OS === 'android' && FileSystem.StorageAccessFramework) {
+        try {
+          let permissions;
+          try {
+            const initialUri = FileSystem.StorageAccessFramework.getUriForDirectoryInRoot('Download');
+            permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(initialUri);
+          } catch {
+            permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          }
+
+          if (permissions && permissions.granted && permissions.directoryUri) {
+            const safFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              filename,
+              mimeType
+            );
+            await FileSystem.writeAsStringAsync(safFileUri, content, {
+              encoding: FileSystem.EncodingType.UTF8,
+            });
+            return {
+              success: true,
+              uri: safFileUri,
+              savedDirectly: true,
+            };
+          } else {
+            return { success: false, error: '用户取消了选择' };
+          }
+        } catch (safErr: any) {
+          console.warn('StorageAccessFramework save failed, falling back to Sharing:', safErr);
+          // 若 SAF 失败或受限，继续回退到 cacheDirectory + Sharing
+        }
+      }
+
+      // 2. iOS 或备用方案：写入本地应用目录并调起系统原生保存/分享面板
       const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
       if (!baseDir) {
         await this.shareContent(filename, content);

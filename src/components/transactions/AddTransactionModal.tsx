@@ -5,6 +5,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ActivityIndicator,
   ScrollView,
@@ -121,12 +122,41 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     }
   }, [displayedPlatforms, platform, lockAsset]);
   const [symbol, setSymbol] = useState(initialSymbol);
+  const symbolInputRef = useRef<TextInput>(null);
+
+  const handleClearSymbol = useCallback(() => {
+    setSymbol('');
+    symbolInputRef.current?.focus();
+    setTimeout(() => {
+      symbolInputRef.current?.focus();
+    }, 50);
+  }, []);
   const [priceStr, setPriceStr] = useState('');
   const [amountStr, setAmountStr] = useState('');
+  const priceInputRef = useRef<TextInput>(null);
+  const amountInputRef = useRef<TextInput>(null);
+
+  const handleClearPrice = useCallback(() => {
+    setPriceStr('');
+    priceInputRef.current?.focus();
+    setTimeout(() => {
+      priceInputRef.current?.focus();
+    }, 50);
+  }, []);
+
+  const handleClearAmount = useCallback(() => {
+    setAmountStr('');
+    if (errorMessage) setErrorMessage(null);
+    amountInputRef.current?.focus();
+    setTimeout(() => {
+      amountInputRef.current?.focus();
+    }, 50);
+  }, [errorMessage]);
   const [dateStr, setDateStr] = useState('');
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [isHoldingDropdownOpen, setIsHoldingDropdownOpen] = useState(false);
+  const [holdingSearchQuery, setHoldingSearchQuery] = useState('');
   
   // 状态与加载指示
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,16 +170,53 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     return (holdings || []).filter((h) => h.totalQuantity > 0);
   }, [holdings]);
 
+  // 卖出下拉持仓列表快速过滤 (支持代币代码、代币全称与平台检索)
+  const filteredAvailableHoldings = useMemo(() => {
+    const q = holdingSearchQuery.trim().toLowerCase();
+    if (!q) return availableHoldings;
+    return availableHoldings.filter(
+      (h) =>
+        h.symbol.toLowerCase().includes(q) ||
+        (h.name && h.name.toLowerCase().includes(q)) ||
+        (h.platform && h.platform.toLowerCase().includes(q))
+    );
+  }, [availableHoldings, holdingSearchQuery]);
+
   // 当前匹配的持仓对象
   const selectedHolding = useMemo(() => {
     const base = extractBaseSymbol(symbol).toLowerCase();
     const plat = platform.toLowerCase();
     const found = availableHoldings.find(
-      (h) => h.symbol.toLowerCase() === base && (h.platform || 'Binance').toLowerCase() === plat
+      (h) =>
+        (h.symbol.toLowerCase() === base ||
+          h.assetId.toLowerCase() === `${base}_${plat}` ||
+          h.assetId.toLowerCase() === base) &&
+        (h.platform || 'Binance').toLowerCase() === plat
     );
     if (found) return found;
-    return availableHoldings.length > 0 ? availableHoldings[0] : null;
-  }, [availableHoldings, symbol, platform]);
+    // 仅在卖出模式且未锁定资产时，默认选第一个有效持仓
+    if (activeTab === 'SELL' && !lockAsset && availableHoldings.length > 0) {
+      return availableHoldings[0];
+    }
+    return null;
+  }, [availableHoldings, symbol, platform, activeTab, lockAsset]);
+
+  // 有效可用持仓（三级安全防御：1. 组件 holdingQty; 2. selectedHolding.totalQuantity; 3. 全局 holdings 匹配项）
+  // 杜绝异步刷新、初始渲染或组件挂载延迟导致的“可用持仓闪烁为0”问题
+  const effectiveHoldingQty = useMemo(() => {
+    if (holdingQty > 0) return holdingQty;
+    if (selectedHolding && selectedHolding.totalQuantity > 0) return selectedHolding.totalQuantity;
+    const base = extractBaseSymbol(symbol).toLowerCase();
+    const plat = platform.toLowerCase();
+    const matched = (holdings || []).find(
+      (h) =>
+        (h.symbol.toLowerCase() === base ||
+          h.assetId.toLowerCase() === `${base}_${plat}` ||
+          h.assetId.toLowerCase() === base) &&
+        (h.platform || 'Binance').toLowerCase() === plat
+    );
+    return matched ? matched.totalQuantity : holdingQty;
+  }, [holdingQty, selectedHolding, holdings, symbol, platform]);
 
   // 自定义优雅提示弹窗状态
   const [alertConfig, setAlertConfig] = useState<{
@@ -286,6 +353,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setTxType(openingTab);
       setFundingCurrency('USDT');
       setIsHoldingDropdownOpen(false);
+      setHoldingSearchQuery('');
       setPriceStr('');
       setAmountStr('');
       setDateStr('');
@@ -305,10 +373,29 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         targetPlat = matched.platform || 'Binance';
         targetSym = matched.symbol;
         setHoldingQty(matched.totalQuantity);
+      } else {
+        // 锁定资产（例如从资产详情页直接点击“卖出”或“买入”）或普通打开时，同步立即对齐该资产在对应平台的持仓
+        const base = extractBaseSymbol(targetSym).toLowerCase();
+        const plat = targetPlat.toLowerCase();
+        const matched = (holdings || []).find(
+          (h) =>
+            (h.symbol.toLowerCase() === base ||
+              h.assetId.toLowerCase() === `${base}_${plat}` ||
+              h.assetId.toLowerCase() === base) &&
+            (h.platform || 'Binance').toLowerCase() === plat
+        );
+        if (matched) {
+          setHoldingQty(matched.totalQuantity);
+        } else {
+          setHoldingQty(0);
+        }
       }
 
       setPlatform(targetPlat);
       setSymbol(targetSym);
+
+      // 立即触发一次持仓异步深度查验（带入目标参数，避免等待状态下次渲染生效）
+      refreshHolding(targetSym, targetPlat);
 
       // 记录已获取价格的代币与平台 key，拉取一次市价
       const key = `${targetPlat}_${targetSym.trim().toUpperCase()}`;
@@ -338,35 +425,76 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   }, [symbol, platform, visible, fetchMarketPrice]);
 
   // 当代币改变、平台改变或切换为卖出时，计算当前该平台上的可用持仓
-  const refreshHolding = useCallback(async () => {
-    if (!txRepo || !symbol.trim()) {
-      setHoldingQty(0);
-      return 0;
-    }
-    try {
-      const base = extractBaseSymbol(symbol);
-      const targetAssetId = `${base.toLowerCase()}_${platform.toLowerCase()}`;
-      
-      const txs = await txRepo.findByAssetId(targetAssetId);
-      let total = 0;
-      for (const t of txs) {
-        if (editingTransaction && t.id === editingTransaction.id) {
-          continue;
-        }
-        if (t.type === 'BUY') {
-          total += t.amount;
-        } else if (t.type === 'SELL') {
-          total -= t.amount;
-        }
+  const refreshHolding = useCallback(
+    async (symOverride?: string, platOverride?: PlatformType) => {
+      const querySym = (symOverride !== undefined ? symOverride : symbol).trim();
+      const queryPlat = platOverride !== undefined ? platOverride : platform;
+      if (!querySym) {
+        setHoldingQty(0);
+        return 0;
       }
-      const holding = Math.max(0, total);
-      setHoldingQty(holding);
-      return holding;
-    } catch {
-      setHoldingQty(0);
-      return 0;
-    }
-  }, [txRepo, symbol, platform, editingTransaction]);
+
+      const base = extractBaseSymbol(querySym);
+      const targetAssetId = `${base.toLowerCase()}_${queryPlat.toLowerCase()}`;
+
+      // 1. 同步即时读取来自 App 计算好的可用持仓（确保即开即有，零延迟不闪烁 0）
+      const propHolding = (holdings || []).find(
+        (h) =>
+          (h.symbol.toLowerCase() === base.toLowerCase() ||
+            h.assetId.toLowerCase() === targetAssetId ||
+            h.assetId.toLowerCase() === base.toLowerCase()) &&
+          (h.platform || 'Binance').toLowerCase() === queryPlat.toLowerCase()
+      );
+      const propQty = propHolding ? propHolding.totalQuantity : 0;
+
+      if (!txRepo) {
+        setHoldingQty(propQty);
+        return propQty;
+      }
+
+      try {
+        // 2. 从本地 SQLite 数据库查询权威交易记录
+        let txs = await txRepo.findByAssetId(targetAssetId);
+        if (txs.length === 0) {
+          // 兜底查验，兼容旧格式 assetId 未拼接平台后缀的历史数据
+          const allTxs = await txRepo.findAll();
+          txs = allTxs.filter(
+            (t) =>
+              (t.assetId.toLowerCase() === targetAssetId ||
+                t.assetId.toLowerCase() === base.toLowerCase() ||
+                extractBaseSymbol(t.assetId).toLowerCase() === base.toLowerCase()) &&
+              (!t.platform || t.platform.toLowerCase() === queryPlat.toLowerCase())
+          );
+        }
+
+        let total = 0;
+        for (const t of txs) {
+          if (editingTransaction && t.id === editingTransaction.id) {
+            continue;
+          }
+          if (t.type === 'BUY') {
+            total += t.amount;
+          } else if (t.type === 'SELL') {
+            total -= t.amount;
+          }
+        }
+        const calculatedDbHolding = Math.max(0, total);
+        // 若数据库刚写入或出现短暂查询差异，以非零数值优先保证用户体验
+        const finalQty =
+          calculatedDbHolding > 0
+            ? calculatedDbHolding
+            : propQty > 0
+            ? propQty
+            : calculatedDbHolding;
+        setHoldingQty(finalQty);
+        return finalQty;
+      } catch {
+        setHoldingQty(propQty);
+        return propQty;
+      }
+    },
+    [txRepo, symbol, platform, editingTransaction, holdings]
+  );
 
   useEffect(() => {
     if (visible) {
@@ -378,8 +506,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const parsedAmount = parseFloat(amountStr);
   const isOverselling = useMemo(() => {
     if (txType === 'BUY') return false;
-    return !isNaN(parsedAmount) && parsedAmount > holdingQty;
-  }, [txType, parsedAmount, holdingQty]);
+    return !isNaN(parsedAmount) && parsedAmount > effectiveHoldingQty;
+  }, [txType, parsedAmount, effectiveHoldingQty]);
 
   // 获取该平台的格式提示
   const formatHint = useMemo(() => {
@@ -429,6 +557,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     setActiveTab(type);
     setTxType(type);
     setIsHoldingDropdownOpen(false);
+    setHoldingSearchQuery('');
     setErrorMessage(null);
 
     if (type === 'SELL') {
@@ -443,11 +572,27 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           setPlatform(plat);
           setSymbol(first.symbol);
           setHoldingQty(first.totalQuantity);
+          refreshHolding(first.symbol, plat);
           fetchedTokenKeyRef.current = `${plat}_${first.symbol.trim().toUpperCase()}`;
           fetchMarketPrice(plat, first.symbol, false);
           return;
         }
       }
+
+      // 如果已锁定资产或当前资产已有持仓，同步对齐持仓数
+      const base = extractBaseSymbol(symbol).toLowerCase();
+      const plat = platform.toLowerCase();
+      const matched = (holdings || []).find(
+        (h) =>
+          (h.symbol.toLowerCase() === base ||
+            h.assetId.toLowerCase() === `${base}_${plat}` ||
+            h.assetId.toLowerCase() === base) &&
+          (h.platform || 'Binance').toLowerCase() === plat
+      );
+      if (matched) {
+        setHoldingQty(matched.totalQuantity);
+      }
+      refreshHolding(symbol, platform);
     } else if (type === 'BUY') {
       const cleanSym = symbol.trim().toUpperCase();
       if (cleanSym) {
@@ -532,15 +677,17 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     setSymbol(h.symbol);
     setHoldingQty(h.totalQuantity);
     setIsHoldingDropdownOpen(false);
+    setHoldingSearchQuery('');
     setAmountStr('');
     setErrorMessage(null);
     fetchedTokenKeyRef.current = `${plat}_${h.symbol.trim().toUpperCase()}`;
     fetchMarketPrice(plat, h.symbol, false);
+    refreshHolding(h.symbol, plat);
   };
 
   // 快捷全额卖出
   const handleSetMaxSell = () => {
-    setAmountStr(holdingQty.toString());
+    setAmountStr(effectiveHoldingQty.toString());
   };
 
   // 代币 Logo 渲染
@@ -609,20 +756,33 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
     // 针对卖出操作，执行权威实时持仓查验与优雅拦截
     if (txType === 'SELL') {
-      let currentHolding = holdingQty;
+      let currentHolding = effectiveHoldingQty;
       if (txRepo) {
         try {
-          const freshTxs = await txRepo.findByAssetId(assetId);
+          let freshTxs = await txRepo.findByAssetId(assetId);
+          if (freshTxs.length === 0) {
+            const allTxs = await txRepo.findAll();
+            freshTxs = allTxs.filter(
+              (t) =>
+                (t.assetId.toLowerCase() === assetId.toLowerCase() ||
+                  t.assetId.toLowerCase() === baseSymbol.toLowerCase() ||
+                  extractBaseSymbol(t.assetId).toLowerCase() === baseSymbol.toLowerCase()) &&
+                (!t.platform || t.platform.toLowerCase() === platform.toLowerCase())
+            );
+          }
           let sum = 0;
           for (const t of freshTxs) {
             if (editingTransaction && t.id === editingTransaction.id) continue;
             if (t.type === 'BUY') sum += t.amount;
             else if (t.type === 'SELL') sum -= t.amount;
           }
-          currentHolding = Math.max(0, sum);
-          setHoldingQty(currentHolding);
+          const holding = Math.max(0, sum);
+          if (holding > 0 || currentHolding === 0) {
+            currentHolding = holding;
+            setHoldingQty(currentHolding);
+          }
         } catch {
-          // fallback to holdingQty
+          // fallback to currentHolding
         }
       }
 
@@ -658,8 +818,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       }
     }
 
-    // 防超卖与数值校验
-    const validation = PnLEngine.validateTransaction(txType, q, p, holdingQty);
+    // 防超卖与数值校验 (传入当前最新校验出的持仓量 currentHolding)
+    const validation = PnLEngine.validateTransaction(txType, q, p, currentHolding);
     if (!validation.valid) {
       setErrorMessage(validation.error || (language === 'zh' ? '输入参数有误' : 'Invalid parameters'));
       return;
@@ -811,7 +971,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           <ScrollView
             contentContainerStyle={styles.scrollBody}
             keyboardShouldPersistTaps="handled"
-            onScrollBeginDrag={() => setIsHoldingDropdownOpen(false)}
+            scrollEnabled={!isHoldingDropdownOpen}
+            nestedScrollEnabled={true}
             style={{ zIndex: 1 }}
           >
             {/* 买入/卖出/充值方向分段选择器 */}
@@ -875,7 +1036,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                                 </View>
                               </View>
                               <Text style={styles.selectorSub}>
-                                {t('transaction.available', language)}: {holdingQty} {extractBaseSymbol(symbol)}
+                                {t('transaction.available', language)}: {effectiveHoldingQty} {extractBaseSymbol(symbol)}
                               </Text>
                             </View>
                           </View>
@@ -1000,6 +1161,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         <Text style={styles.formLabel}>{t('transaction.tokenSymbol', language)}</Text>
                         <View style={styles.inputWithClearWrapper}>
                           <TextInput
+                            ref={symbolInputRef}
                             style={styles.inputBoxWithClear}
                             value={symbol}
                             onChangeText={(val) => setSymbol(val.toUpperCase())}
@@ -1011,7 +1173,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                           {symbol.length > 0 && (
                             <TouchableOpacity
                               style={styles.clearInputBtn}
-                              onPress={() => setSymbol('')}
+                              onPress={handleClearSymbol}
                               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                               activeOpacity={0.7}
                             >
@@ -1051,7 +1213,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                                 </View>
                               </View>
                               <Text style={styles.selectorSub}>
-                                {t('transaction.available', language)}: {holdingQty} {extractBaseSymbol(symbol)}
+                                {t('transaction.available', language)}: {effectiveHoldingQty} {extractBaseSymbol(symbol)}
                               </Text>
                             </View>
                           </View>
@@ -1077,11 +1239,17 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         <View style={styles.labelRow}>
                           <Text style={styles.formLabel}>{t('transaction.selectHoldingToSell', language)}</Text>
                           <Text style={styles.holdingInfoText}>
-                            {t('transaction.available', language)}: {holdingQty} {extractBaseSymbol(symbol)}
+                            {t('transaction.available', language)}: {effectiveHoldingQty} {extractBaseSymbol(symbol)}
                           </Text>
                         </View>
 
                         <View style={styles.selectorWrapper}>
+                          {isHoldingDropdownOpen && (
+                            <TouchableWithoutFeedback onPress={() => setIsHoldingDropdownOpen(false)}>
+                              <View style={styles.dropdownBackdrop} />
+                            </TouchableWithoutFeedback>
+                          )}
+
                           <TouchableOpacity
                             style={[
                               styles.holdingSelectorBox,
@@ -1102,7 +1270,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                                   </View>
                                 </View>
                                 <Text style={styles.selectorSub}>
-                                  {t('transaction.available', language)}: {selectedHolding?.totalQuantity ?? holdingQty} {extractBaseSymbol(symbol)}
+                                  {t('transaction.available', language)}: {effectiveHoldingQty} {extractBaseSymbol(symbol)}
                                 </Text>
                               </View>
                             </View>
@@ -1113,45 +1281,79 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
                           {isHoldingDropdownOpen && (
                             <View style={styles.dropdownFloatingContainer}>
+                              {availableHoldings.length > 4 && (
+                                <View style={styles.dropdownSearchWrapper}>
+                                  <SearchIcon size={14} color="#64748B" />
+                                  <TextInput
+                                    style={styles.dropdownSearchInput}
+                                    value={holdingSearchQuery}
+                                    onChangeText={setHoldingSearchQuery}
+                                    placeholder={language === 'zh' ? '搜索持仓代币代码/名称...' : 'Search token / name...'}
+                                    placeholderTextColor="#64748B"
+                                    autoCapitalize="characters"
+                                    autoCorrect={false}
+                                  />
+                                  {holdingSearchQuery.length > 0 && (
+                                    <TouchableOpacity
+                                      onPress={() => setHoldingSearchQuery('')}
+                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    >
+                                      <View style={styles.clearIconCircleSmall}>
+                                        <CloseCrossIcon size={10} color="#94A3B8" strokeWidth={2.5} />
+                                      </View>
+                                    </TouchableOpacity>
+                                  )}
+                                </View>
+                              )}
+
                               <ScrollView
                                 style={styles.dropdownScroll}
                                 nestedScrollEnabled={true}
                                 showsVerticalScrollIndicator={true}
-                                keyboardShouldPersistTaps="always"
+                                persistentScrollbar={true}
+                                keyboardShouldPersistTaps="handled"
                               >
-                                {availableHoldings.map((item) => {
-                                  const itemPlat = item.platform || 'Binance';
-                                  const isCurrent =
-                                    item.symbol.toLowerCase() === symbol.toLowerCase() &&
-                                    itemPlat.toLowerCase() === platform.toLowerCase();
-                                  return (
-                                    <TouchableOpacity
-                                      key={item.assetId}
-                                      style={[styles.dropdownItem, isCurrent && styles.dropdownItemActive]}
-                                      onPress={() => handleSelectHolding(item)}
-                                      activeOpacity={0.7}
-                                    >
-                                      <View style={styles.selectorLeft}>
-                                        {renderLogo(item.symbol, 28)}
-                                        <View style={styles.selectorInfo}>
-                                          <View style={styles.selectorTitleRow}>
-                                            <Text style={[styles.selectorName, isCurrent && styles.textHighlight]}>
-                                              {item.name} ({item.symbol})
-                                            </Text>
-                                            <View style={styles.platformBadge}>
-                                              <Text style={styles.platformBadgeText}>{itemPlat}</Text>
+                                {filteredAvailableHoldings.length === 0 ? (
+                                  <View style={styles.dropdownEmpty}>
+                                    <Text style={styles.dropdownEmptyText}>
+                                      {language === 'zh' ? '未找到匹配的持仓' : 'No matching holdings'}
+                                    </Text>
+                                  </View>
+                                ) : (
+                                  filteredAvailableHoldings.map((item) => {
+                                    const itemPlat = item.platform || 'Binance';
+                                    const isCurrent =
+                                      item.symbol.toLowerCase() === symbol.toLowerCase() &&
+                                      itemPlat.toLowerCase() === platform.toLowerCase();
+                                    return (
+                                      <TouchableOpacity
+                                        key={item.assetId}
+                                        style={[styles.dropdownItem, isCurrent && styles.dropdownItemActive]}
+                                        onPress={() => handleSelectHolding(item)}
+                                        activeOpacity={0.7}
+                                      >
+                                        <View style={styles.selectorLeft}>
+                                          {renderLogo(item.symbol, 28)}
+                                          <View style={styles.selectorInfo}>
+                                            <View style={styles.selectorTitleRow}>
+                                              <Text style={[styles.selectorName, isCurrent && styles.textHighlight]}>
+                                                {item.name} ({item.symbol})
+                                              </Text>
+                                              <View style={styles.platformBadge}>
+                                                <Text style={styles.platformBadgeText}>{itemPlat}</Text>
+                                              </View>
                                             </View>
                                           </View>
                                         </View>
-                                      </View>
-                                      <View style={styles.itemRight}>
-                                        <Text style={[styles.itemQtyText, isCurrent && styles.textHighlight]}>
-                                          {item.totalQuantity} {item.symbol}
-                                        </Text>
-                                      </View>
-                                    </TouchableOpacity>
-                                  );
-                                })}
+                                        <View style={styles.itemRight}>
+                                          <Text style={[styles.itemQtyText, isCurrent && styles.textHighlight]}>
+                                            {item.totalQuantity} {item.symbol}
+                                          </Text>
+                                        </View>
+                                      </TouchableOpacity>
+                                    );
+                                  })
+                                )}
                               </ScrollView>
                             </View>
                           )}
@@ -1186,15 +1388,30 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                       )}
                     </TouchableOpacity>
                   </View>
-                  <TextInput
-                    style={styles.inputBox}
-                    value={priceStr}
-                    onChangeText={setPriceStr}
-                    onFocus={() => setIsHoldingDropdownOpen(false)}
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    placeholderTextColor="#64748B"
-                  />
+                  <View style={styles.inputWithClearWrapper}>
+                    <TextInput
+                      ref={priceInputRef}
+                      style={styles.inputBoxWithClear}
+                      value={priceStr}
+                      onChangeText={setPriceStr}
+                      onFocus={() => setIsHoldingDropdownOpen(false)}
+                      keyboardType="decimal-pad"
+                      placeholder="0.00"
+                      placeholderTextColor="#64748B"
+                    />
+                    {priceStr.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.clearInputBtn}
+                        onPress={handleClearPrice}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.clearIconCircle}>
+                          <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                   {priceNotice && (
                     <Text style={styles.fallbackNoticeText}>{priceNotice}</Text>
                   )}
@@ -1204,30 +1421,45 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 <View style={styles.formGroup}>
                   <View style={styles.labelRow}>
                     <Text style={styles.formLabel}>{t('transaction.quantityAmount', language)}</Text>
-                    {!isBuy && holdingQty > 0 && (
+                    {!isBuy && effectiveHoldingQty > 0 && (
                       <TouchableOpacity onPress={handleSetMaxSell} style={styles.maxChip}>
                         <Text style={styles.maxChipText}>{language === 'zh' ? '全部卖出' : 'Max'}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                  <TextInput
-                    style={[styles.inputBox, isOverselling && styles.inputBoxError]}
-                    value={amountStr}
-                    onChangeText={(val) => {
-                      setAmountStr(val);
-                      if (errorMessage) setErrorMessage(null);
-                    }}
-                    onFocus={() => setIsHoldingDropdownOpen(false)}
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    placeholderTextColor="#64748B"
-                  />
+                  <View style={styles.inputWithClearWrapper}>
+                    <TextInput
+                      ref={amountInputRef}
+                      style={[styles.inputBoxWithClear, isOverselling && styles.inputBoxError]}
+                      value={amountStr}
+                      onChangeText={(val) => {
+                        setAmountStr(val);
+                        if (errorMessage) setErrorMessage(null);
+                      }}
+                      onFocus={() => setIsHoldingDropdownOpen(false)}
+                      keyboardType="decimal-pad"
+                      placeholder="0.00"
+                      placeholderTextColor="#64748B"
+                    />
+                    {amountStr.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.clearInputBtn}
+                        onPress={handleClearAmount}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.clearIconCircle}>
+                          <CloseCrossIcon size={12} color="#94A3B8" strokeWidth={2.5} />
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                   {isOverselling && (
                     <View style={styles.inlineWarningRow}>
                       <Text style={styles.inlineWarningText}>
                         {language === 'zh'
-                          ? `⚠️ 卖出数量 (${amountStr}) 超出可用持仓 (${holdingQty})`
-                          : `⚠️ Quantity (${amountStr}) exceeds available holding (${holdingQty})`}
+                          ? `⚠️ 卖出数量 (${amountStr}) 超出可用持仓 (${effectiveHoldingQty})`
+                          : `⚠️ Quantity (${amountStr}) exceeds available holding (${effectiveHoldingQty})`}
                       </Text>
                     </View>
                   )}
@@ -1890,8 +2122,51 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     overflow: 'hidden',
   },
+  dropdownBackdrop: {
+    position: 'absolute',
+    top: -1000,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    zIndex: 9998,
+  },
   dropdownScroll: {
-    maxHeight: 220,
+    maxHeight: 340,
+  },
+  dropdownSearchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+  },
+  dropdownSearchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 13,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+  clearIconCircleSmall: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownEmpty: {
+    paddingVertical: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropdownEmptyText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '500',
   },
   dropdownItem: {
     flexDirection: 'row',

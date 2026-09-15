@@ -490,5 +490,81 @@ describe('Add Transaction Validation & Persistence (交易录入与防超卖校�
       expect(newCost <= effectiveCapital).toBe(true);
     });
   });
+
+  describe('即时持仓读取与卖出持仓匹配逻辑 (Immediate Holding & Filter Tests)', () => {
+    it('刚买入后立即打开卖出，能从 holdings 数组中即时匹配并返回有效可用持仓，不为 0', () => {
+      const mockHoldings: any[] = [
+        {
+          assetId: 'sol_binance',
+          symbol: 'SOL',
+          name: 'Solana',
+          platform: 'Binance',
+          totalQuantity: 110,
+        },
+        {
+          assetId: 'btc_binance',
+          symbol: 'BTC',
+          name: 'Bitcoin',
+          platform: 'Binance',
+          totalQuantity: 0.5,
+        },
+      ];
+
+      const targetSym = 'SOL';
+      const targetPlat = 'Binance';
+
+      // 模拟多级防御匹配
+      const base = extractBaseSymbol(targetSym).toLowerCase();
+      const plat = targetPlat.toLowerCase();
+      const matched = mockHoldings.find(
+        (h) =>
+          (h.symbol.toLowerCase() === base ||
+            h.assetId.toLowerCase() === `${base}_${plat}` ||
+            h.assetId.toLowerCase() === base) &&
+          (h.platform || 'Binance').toLowerCase() === plat
+      );
+
+      expect(matched).toBeDefined();
+      expect(matched!.totalQuantity).toBe(110);
+    });
+
+    it('卖出持仓列表过滤：支持超过4个持仓，且支持按代币名称和代码模糊搜索', () => {
+      const mockHoldings: any[] = [
+        { assetId: 'btc_binance', symbol: 'BTC', name: 'Bitcoin', platform: 'Binance', totalQuantity: 0.5 },
+        { assetId: 'sol_binance', symbol: 'SOL', name: 'Solana', platform: 'Binance', totalQuantity: 110 },
+        { assetId: 'eth_binance', symbol: 'ETH', name: 'Ethereum', platform: 'Binance', totalQuantity: 12 },
+        { assetId: 'doge_binance', symbol: 'DOGE', name: 'Dogecoin', platform: 'Binance', totalQuantity: 85000 },
+        { assetId: 'xrp_binance', symbol: 'XRP', name: 'XRP', platform: 'Binance', totalQuantity: 3000 },
+        { assetId: 'ada_binance', symbol: 'ADA', name: 'Cardano', platform: 'Binance', totalQuantity: 5000 },
+      ];
+
+      // 1. 验证全部持仓超过4个（共6个）
+      expect(mockHoldings.length).toBe(6);
+
+      // 2. 验证无搜索关键词时，返回全部 6 个持仓
+      const filterHoldings = (query: string) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return mockHoldings;
+        return mockHoldings.filter(
+          (h) =>
+            h.symbol.toLowerCase().includes(q) ||
+            (h.name && h.name.toLowerCase().includes(q)) ||
+            (h.platform && h.platform.toLowerCase().includes(q))
+        );
+      };
+
+      expect(filterHoldings('').length).toBe(6);
+
+      // 3. 搜索代币代码 "xrp" 能准确命中第5个持仓
+      const xrpResults = filterHoldings('xrp');
+      expect(xrpResults.length).toBe(1);
+      expect(xrpResults[0].symbol).toBe('XRP');
+
+      // 4. 搜索代币全称 "cardano" 能准确命中第6个持仓
+      const adaResults = filterHoldings('cardano');
+      expect(adaResults.length).toBe(1);
+      expect(adaResults[0].symbol).toBe('ADA');
+    });
+  });
 });
 

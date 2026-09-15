@@ -208,7 +208,7 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
             <View style={styles.brandHeader}>
               <AppLogoIcon size={20} color={colors.accent} strokeWidth={2} />
               <Text style={[styles.brandTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                Investment Tracker
+                {t('nav.appTitle', language)}
               </Text>
             </View>
 

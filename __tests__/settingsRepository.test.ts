@@ -24,7 +24,7 @@ describe('SettingsRepository (用户偏好配置持久化测试)', () => {
     expect(settings.privacyMode).toBe(false);
     expect(settings.appSwitcherBlur).toBe(true);
     expect(settings.language).toBe('zh');
-    expect(settings.enabledPlatforms).toEqual(['Binance', 'Coinbase', 'CoinGecko', 'OKX']);
+    expect(settings.enabledPlatforms).toEqual(['Binance', 'OKX']);
   });
 
   it('成功更新并持久化部分配置项 (含 enabledPlatforms)', async () => {
@@ -129,5 +129,71 @@ describe('SettingsRepository (用户偏好配置持久化测试)', () => {
     expect((await assetRepo.findAll()).length).toBe(0);
     expect((await txRepo.findAll()).length).toBe(0);
     expect((await depositRepo.findAll()).length).toBe(0);
+  });
+
+  it('支持收藏资产 ID 的持久化存储与更新', async () => {
+    const settings = await settingsRepo.getSettings();
+    expect(settings.favorites).toEqual([]);
+
+    await settingsRepo.updateSettings({ favorites: ['sol_binance', 'btc_okx'] });
+    const updated = await settingsRepo.getSettings();
+    expect(updated.favorites).toEqual(['sol_binance', 'btc_okx']);
+
+    await settingsRepo.updateSettings({ favorites: ['sol_binance'] });
+    const removed = await settingsRepo.getSettings();
+    expect(removed.favorites).toEqual(['sol_binance']);
+  });
+
+  it('收藏代币排序优先级高于 0 持仓规则 (即使 0 持仓也排在未收藏的有持仓前面)', () => {
+    const { isAssetFavorite } = require('../src/domain/types');
+
+    const favorites = ['sol_binance', 'pepe'];
+
+    // 模拟 4 个不同状态的持仓资产
+    const holdings = [
+      // 未收藏，有持仓，市值 $7000
+      { assetId: 'btc_binance', symbol: 'BTC', name: 'Bitcoin', platform: 'Binance', totalQuantity: 0.1, marketValue: 7000, totalBoughtCost: 6000 },
+      // 收藏，0持仓 (已清仓)
+      { assetId: 'sol_binance', symbol: 'SOL', name: 'Solana', platform: 'Binance', totalQuantity: 0, marketValue: 0, totalBoughtCost: 5000 },
+      // 未收藏，0持仓
+      { assetId: 'eth_binance', symbol: 'ETH', name: 'Ethereum', platform: 'Binance', totalQuantity: 0, marketValue: 0, totalBoughtCost: 3000 },
+      // 收藏，有持仓，市值 $2000
+      { assetId: 'pepe', symbol: 'PEPE', name: 'Pepe', platform: 'OKX', totalQuantity: 1000000, marketValue: 2000, totalBoughtCost: 1000 },
+    ];
+
+    // 注入 isFavorite 状态
+    for (const h of holdings) {
+      (h as any).isFavorite = isAssetFavorite(h, favorites);
+    }
+
+    expect((holdings[0] as any).isFavorite).toBe(false);
+    expect((holdings[1] as any).isFavorite).toBe(true);
+    expect((holdings[2] as any).isFavorite).toBe(false);
+    expect((holdings[3] as any).isFavorite).toBe(true);
+
+    // 执行业务排序逻辑
+    holdings.sort((a, b) => {
+      const aFav = !!(a as any).isFavorite;
+      const bFav = !!(b as any).isFavorite;
+      if (aFav !== bFav) {
+        return aFav ? -1 : 1;
+      }
+      const aHasQty = a.totalQuantity > 0;
+      const bHasQty = b.totalQuantity > 0;
+      if (aHasQty !== bHasQty) {
+        return aHasQty ? -1 : 1;
+      }
+      if (aHasQty) {
+        return b.marketValue - a.marketValue;
+      }
+      return (b.totalBoughtCost || 0) - (a.totalBoughtCost || 0);
+    });
+
+    // 验证顺序：
+    // 1. PEPE (收藏，有持仓)
+    // 2. SOL (收藏，即便 0 持仓也排在最前组)
+    // 3. BTC (未收藏，有持仓)
+    // 4. ETH (未收藏，0 持仓沉底)
+    expect(holdings.map((h) => h.symbol)).toEqual(['PEPE', 'SOL', 'BTC', 'ETH']);
   });
 });
