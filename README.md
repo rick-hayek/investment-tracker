@@ -1,2 +1,0 @@
-# investment-tracker
-track investment 
